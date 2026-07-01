@@ -30,8 +30,19 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan('dev'));
 
-// Initialize database
-initializeSchema().catch(console.error);
+// Ensure database is initialized before handling requests
+let isInitialized = false;
+let initPromise: Promise<void> | null = null;
+
+app.use(async (_req, _res, next) => {
+  if (!isInitialized) {
+    if (!initPromise) {
+      initPromise = initializeSchema().then(() => { isInitialized = true; }).catch(console.error);
+    }
+    await initPromise;
+  }
+  next();
+});
 
 // Static file routing removed for Supabase Storage
 
