@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+*.db
+*.db-journal
+.env
+.DS_Store
+*.jks
+key.properties
+Kantinku.apk
+.dart_tool/
+.idea/
+.vscode/
+.vercel/
+*.log

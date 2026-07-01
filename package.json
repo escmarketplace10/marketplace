@@ -1,0 +1,11 @@
+{
+  "name": "kantinku-server",
+  "version": "1.2.0",
+  "private": true,
+  "scripts": {
+    "install:all": "cd backend && npm install",
+    "dev": "cd backend && npm run dev",
+    "build": "cd backend && npm run build",
+    "seed": "cd backend && npm run seed"
+  }
+}

@@ -1,0 +1,53 @@
+==========================================================
+            KANTINKU - SERVER (CARA PAKAI)
+==========================================================
+
+Folder ini adalah "server" Kantinku. Jalankan di SATU PC/laptop
+yang akan jadi pusat data kasir. TIDAK perlu install apa pun.
+
+LANGKAH:
+1. Klik dua kali file:  Mulai-Server.bat
+2. Akan muncul jendela hitam berisi alamat, contoh:
+        http://192.168.1.10:3001
+   Catat alamat itu.
+3. Di HP/Tablet, buka aplikasi Kantinku -> layar "Setup Server"
+   -> isi alamat tadi -> Sambungkan.
+4. Login dengan PIN Admin: 123456
+   (ganti PIN & tambah menu/karyawan langsung di aplikasi)
+
+PENTING:
+- HP/Tablet harus terhubung ke WiFi yang SAMA dengan PC ini.
+- Biarkan jendela hitam TETAP TERBUKA selama berjualan.
+  Menutupnya = server mati (aplikasi tidak bisa transaksi).
+- Jika Windows menanyakan izin firewall saat pertama kali,
+  pilih "Allow / Izinkan" (jaringan Private).
+
+BACKUP DATA:
+- Semua data ada di folder:  app\data
+- Untuk cadangan, cukup salin folder "app\data" secara berkala
+  (mis. ke flashdisk). File utama: app\data\pos.db
+
+==========================================================
+        MODE OTOMATIS (OPSIONAL, DISARANKAN)
+==========================================================
+
+Daripada klik Mulai-Server.bat setiap hari, Anda bisa memasang
+server sebagai layanan Windows yang menyala SENDIRI:
+
+1. Klik kanan file  Pasang-Otomatis.bat  -> "Run as administrator"
+2. Tunggu sampai muncul "SELESAI!"
+
+Setelah itu:
+- Server otomatis menyala tiap kali PC dihidupkan (TANPA perlu
+  klik apa pun, TANPA jendela hitam yang harus dibiarkan terbuka).
+- Jika server sempat berhenti/error, ia akan menyala ulang sendiri.
+- Untuk melihat alamat IP server kapan saja, jalankan:
+      Lihat-Alamat-Server.bat
+- Untuk membatalkan mode ini (balik ke cara manual), klik kanan
+  lalu "Run as administrator" pada:  Hapus-Otomatis.bat
+
+CATATAN: Mode otomatis ini TIDAK WAJIB. Mulai-Server.bat (manual,
+dengan jendela hitam) tetap bisa dipakai seperti biasa bila Anda
+lebih suka melihat statusnya berjalan secara langsung.
+
+==========================================================
