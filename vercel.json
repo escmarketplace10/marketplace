@@ -11,14 +11,18 @@
       "use": "@vercel/node"
     }
   ],
-  "routes": [
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "/backend/src/index.ts"
+      "source": "/api/(.*)",
+      "destination": "/backend/src/index.ts"
     },
     {
-      "src": "/(.*)",
-      "dest": "/admin/dist/$1"
+      "source": "/assets/(.*)",
+      "destination": "/admin/assets/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/admin/index.html"
     }
   ]
 }
