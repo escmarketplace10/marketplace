@@ -15,7 +15,6 @@ import transactionRoutes from './routes/transactions';
 import inventoryRoutes from './routes/inventory';
 import supplierRoutes from './routes/suppliers';
 import consignorRoutes from './routes/consignors';
-import path from 'path';
 import purchaseOrderRoutes from './routes/purchase-orders';
 import expenseRoutes from './routes/expenses';
 import dashboardRoutes from './routes/dashboard';
