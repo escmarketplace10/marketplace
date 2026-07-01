@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Search, Plus, Package, AlertTriangle, ArrowUpDown } from 'lucide-react';
+import { Search, Package, ArrowUpDown } from 'lucide-react';
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n);
 

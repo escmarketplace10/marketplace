@@ -1,7 +1,7 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, TrendingUp, Package, Truck, ShoppingCart,
-  Wallet, Users, LogOut, ChevronRight, Store
+  Wallet, Users, LogOut
 } from 'lucide-react';
 
 const navItems = [

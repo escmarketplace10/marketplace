@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Users, Plus, Search, Edit2, Percent } from 'lucide-react';
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n);
+
 
 export default function Consignors() {
   const [consignors, setConsignors] = useState<any[]>([]);
