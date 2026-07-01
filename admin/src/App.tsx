@@ -4,6 +4,11 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import LabaRugi from './pages/LabaRugi';
+import Stocking from './pages/Stocking';
+import Suppliers from './pages/Suppliers';
+import Purchases from './pages/Purchases';
+import Expenses from './pages/Expenses';
+import Consignors from './pages/Consignors';
 import './App.css';
 import axios from 'axios';
 
@@ -12,7 +17,7 @@ axios.defaults.baseURL = import.meta.env.VITE_API_URL || '';
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('admin_token');
   if (!token) return <Navigate to="/login" />;
-  return children;
+  return <>{children}</>;
 }
 
 function App() {
@@ -28,10 +33,12 @@ function App() {
           <Route index element={<Navigate to="/dashboard" />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="laba-rugi" element={<LabaRugi />} />
-          <Route path="menu" element={<div style={{padding: '20px'}}><h2>Manajemen Menu & Stok</h2><p>Halaman ini sedang dalam pengembangan.</p></div>} />
-          <Route path="karyawan" element={<div style={{padding: '20px'}}><h2>Manajemen Karyawan</h2><p>Halaman ini sedang dalam pengembangan.</p></div>} />
-          <Route path="settings" element={<div style={{padding: '20px'}}><h2>Pengaturan</h2><p>Halaman ini sedang dalam pengembangan.</p></div>} />
-          <Route path="*" element={<div style={{padding: '20px'}}><h1>404 Not Found</h1></div>} />
+          <Route path="stocking" element={<Stocking />} />
+          <Route path="suppliers" element={<Suppliers />} />
+          <Route path="purchases" element={<Purchases />} />
+          <Route path="expenses" element={<Expenses />} />
+          <Route path="consignors" element={<Consignors />} />
+          <Route path="*" element={<div style={{ padding: '40px', textAlign: 'center' }}><h2>404 — Halaman tidak ditemukan</h2></div>} />
         </Route>
       </Routes>
     </BrowserRouter>
