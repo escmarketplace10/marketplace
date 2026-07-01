@@ -15,6 +15,7 @@ export function getDb() {
     }
     pool = new Pool({
       connectionString: process.env.DATABASE_URL,
+      ssl: process.env.DATABASE_URL?.includes('supabase') ? { rejectUnauthorized: false } : undefined
     });
   }
 
@@ -306,6 +307,22 @@ export async function initializeSchema() {
       created_at TIMESTAMP DEFAULT now()
     );
   `);
+
+  // Ensure default admin exists
+  try {
+    const adminCount = await db.get('SELECT COUNT(*) as count FROM admin_users');
+    if (!adminCount || parseInt(adminCount.count) === 0) {
+      const bcrypt = require('bcryptjs');
+      const passwordHash = await bcrypt.hash('password123', 10);
+      await db.run(
+        'INSERT INTO admin_users (id, email, password_hash, name) VALUES (?, ?, ?, ?)',
+        ['admin_web_1', 'admin@kantinku.com', passwordHash, 'Super Admin']
+      );
+      console.log('Default admin created: admin@kantinku.com / password123');
+    }
+  } catch (e) {
+    console.error('Failed to auto-seed admin:', e);
+  }
 }
 
 export async function closeDb() {
