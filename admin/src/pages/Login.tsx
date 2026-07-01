@@ -16,7 +16,14 @@ export default function Login() {
       localStorage.setItem('admin_user', JSON.stringify(res.data.user));
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Login gagal');
+      const errObj = err.response?.data?.error;
+      if (typeof errObj === 'string') {
+        setError(errObj);
+      } else if (errObj?.message) {
+        setError(errObj.message);
+      } else {
+        setError('Koneksi ke server gagal. (Apakah backend sudah jalan?)');
+      }
     }
   };
 

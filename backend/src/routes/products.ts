@@ -6,17 +6,37 @@ import fs from 'fs';
 
 const router = Router();
 
-/** Simpan gambar base64 ke file, kembalikan path publik (mis. /uploads/<id>.jpg). */
-function saveProductImage(id: string, base64: string): string | null {
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.SUPABASE_URL || 'https://fihrcrtkzieqjlwelixa.supabase.co';
+const supabaseKey = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZpaHJjcnRremllcWpsd2VsaXhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1NDMwMDksImV4cCI6MjA5ODExOTAwOX0.q5532z4zO9M-zcEyKLzumjUDK_xOCdT70uldz4553AE';
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+/** Simpan gambar base64 ke Supabase Storage, kembalikan public URL. */
+async function saveProductImage(id: string, base64: string): Promise<string | null> {
   try {
     const m = /^data:image\/(\w+);base64,(.*)$/s.exec(base64);
     const data = m ? m[2] : base64;
     const ext = m ? (m[1] === 'jpeg' ? 'jpg' : m[1]) : 'jpg';
-    const dir = path.join(__dirname, '..', '..', 'data', 'uploads');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     const filename = `${id}.${ext}`;
-    fs.writeFileSync(path.join(dir, filename), Buffer.from(data, 'base64'));
-    return `/uploads/${filename}`;
+    
+    const buffer = Buffer.from(data, 'base64');
+    
+    const { data: uploadData, error } = await supabase
+      .storage
+      .from('uploads')
+      .upload(filename, buffer, {
+        contentType: m ? `image/${m[1]}` : 'image/jpeg',
+        upsert: true
+      });
+      
+    if (error) {
+      console.error('Supabase upload error:', error);
+      return null;
+    }
+    
+    const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filename);
+    return publicUrlData.publicUrl;
   } catch (e) {
     console.error('Gagal simpan gambar:', e);
     return null;
@@ -108,7 +128,7 @@ router.post('/', async (req: Request, res: Response) => {
   `, [id, category_id, name, sku || null, barcode || null, price, cost_price || 0, unit || 'pcs', stock || 0, min_stock || 0, is_track_stock ?? 1, consignor_id || null, commission_percent ?? null]);
 
   if (req.body.image_base64) {
-    const url = saveProductImage(id, req.body.image_base64);
+    const url = await saveProductImage(id, req.body.image_base64);
     if (url) await db.run('UPDATE products SET image = ? WHERE id = ?', [url, id]);
   }
 
@@ -141,7 +161,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   `, [name || null, price ?? null, cost_price ?? null, stock ?? null, min_stock ?? null, is_active ?? null, barcode || null, category_id || null, unit || null, consignor_id ?? null, commission_percent ?? null, req.params.id]);
 
   if (req.body.image_base64) {
-    const url = saveProductImage(req.params.id, req.body.image_base64);
+    const url = await saveProductImage(req.params.id, req.body.image_base64);
     if (url) await db.run('UPDATE products SET image = ? WHERE id = ?', [url, req.params.id]);
   }
 

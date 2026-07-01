@@ -33,10 +33,7 @@ app.use(morgan('dev'));
 // Initialize database
 initializeSchema().catch(console.error);
 
-// Folder gambar menu (foto produk) — disajikan statis di /uploads
-const uploadsDir = path.join(__dirname, '..', 'data', 'uploads');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-app.use('/uploads', express.static(uploadsDir));
+// Static file routing removed for Supabase Storage
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -80,25 +77,29 @@ function getLanIps(): string[] {
   return ips;
 }
 
-// Serve Admin Frontend Static Files
+// Serve Admin Frontend Static Files (Lokal Only)
 const adminPath = path.join(__dirname, '../../admin/dist');
-app.use('/admin', express.static(adminPath));
-app.get('/admin/*', (_req, res) => {
-  res.sendFile(path.join(adminPath, 'index.html'));
-});
+if (fs.existsSync(adminPath)) {
+  app.use('/admin', express.static(adminPath));
+  app.get('/admin/*', (_req, res) => {
+    res.sendFile(path.join(adminPath, 'index.html'));
+  });
+}
 
-// Start server
-app.listen(Number(PORT), '0.0.0.0', () => {
-  console.log(`🚀 POS Backend running on http://localhost:${PORT}`);
-  console.log(`📊 API Base URL (lokal): http://localhost:${PORT}/api`);
-  const lan = getLanIps();
-  if (lan.length) {
-    console.log('🌐 Akses dari HP/tablet di WiFi yang sama (isi di "Setup Server" aplikasi):');
-    for (const ip of lan) console.log(`   → http://${ip}:${PORT}/api`);
-  }
-});
+// Start server (Only if not running on Vercel)
+if (process.env.VERCEL !== '1') {
+  app.listen(Number(PORT), '0.0.0.0', () => {
+    console.log(`🚀 POS Backend running on http://localhost:${PORT}`);
+    console.log(`📊 API Base URL (lokal): http://localhost:${PORT}/api`);
+    const lan = getLanIps();
+    if (lan.length) {
+      console.log('🌐 Akses dari HP/tablet di WiFi yang sama:');
+      for (const ip of lan) console.log(`   → http://${ip}:${PORT}/api`);
+    }
+  });
 
-process.on('SIGINT', () => { closeDb(); process.exit(0); });
-process.on('SIGTERM', () => { closeDb(); process.exit(0); });
+  process.on('SIGINT', () => { closeDb(); process.exit(0); });
+  process.on('SIGTERM', () => { closeDb(); process.exit(0); });
+}
 
 export default app;
