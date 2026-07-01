@@ -228,11 +228,11 @@ body {
   backdrop-filter: blur(8px);
 }
 
-.navbar-left { display: flex; flex-direction: column; }
-.navbar-title { font-size: 18px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.3px; }
-.navbar-subtitle { font-size: 12px; color: var(--text-muted); }
+.navbar-left { display: flex; flex-direction: column; min-width: 0; flex: 1; margin-right: 16px; }
+.navbar-title { font-size: 18px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.navbar-subtitle { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.navbar-right { display: flex; align-items: center; gap: 12px; }
+.navbar-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 
 .navbar-badge {
   display: flex;
