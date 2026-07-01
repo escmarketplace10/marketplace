@@ -1,7 +1,7 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, TrendingUp, Package, Truck, ShoppingCart,
-  Wallet, Users, LogOut
+  Wallet, Users, LogOut, UserCheck
 } from 'lucide-react';
 
 const navItems = [
@@ -27,6 +27,12 @@ const navItems = [
       { to: '/consignors', icon: Users, label: 'Penitip / Margin' },
     ]
   },
+  {
+    section: 'Sistem',
+    links: [
+      { to: '/employees', icon: UserCheck, label: 'Karyawan (Kasir)' },
+    ]
+  },
 ];
 
 export default function Layout() {
@@ -37,7 +43,7 @@ export default function Layout() {
     try { return JSON.parse(localStorage.getItem('admin_user') || '{}'); } catch { return {}; }
   })();
 
-  const currentPage = navItems.flatMap(s => s.links).find(l => location.pathname.startsWith(l.to));
+  const currentPage = navItems.flatMap(s => s.links).find(l => location.pathname === l.to || location.pathname.startsWith(l.to + '/'));
 
   const handleLogout = () => {
     localStorage.removeItem('admin_token');
