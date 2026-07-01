@@ -14,8 +14,7 @@ class AppConfig {
   }
 
   /// Base URL server CLOUD atau LOKAL.
-  /// TODO: Ubah ke URL Render saat release! (misal: https://api.kantinku.com)
-  static const String baseUrl = 'http://192.168.1.27:3001';
+  static const String baseUrl = 'https://escmarketplace.vercel.app';
 
   static bool get isConfigured => true; // Selalu true karena hardcoded
 
