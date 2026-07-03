@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
 import { getDb } from '../database';
-import { v4 as uuid } from 'uuid';
 import sha256 from 'sha256';
+import { JWT_SECRET } from '../middleware/secret';
 
 const router = Router();
 
@@ -18,8 +19,12 @@ router.post('/login', async (req: Request, res: Response) => {
     return res.status(401).json({ error: 'PIN tidak valid' });
   }
 
-  // Generate simple token
-  const token = sha256(employee.id + Date.now());
+  // JWT karyawan — diverifikasi middleware requireAuth di semua endpoint
+  const token = jwt.sign(
+    { kind: 'employee', id: employee.id, name: employee.name, role: employee.role },
+    JWT_SECRET,
+    { expiresIn: '30d' }
+  );
 
   return res.json({
     token,
@@ -32,25 +37,8 @@ router.post('/login', async (req: Request, res: Response) => {
   });
 });
 
-// POST /api/auth/register - Register new employee (for initial setup)
-router.post('/register', async (req: Request, res: Response) => {
-  const { name, pin, role, phone } = req.body;
-  if (!name || !pin) return res.status(400).json({ error: 'Name and PIN required' });
-
-  if (pin.length < 4 || pin.length > 6) {
-    return res.status(400).json({ error: 'PIN must be 4-6 digits' });
-  }
-
-  const db = getDb();
-  const id = uuid();
-  const hashedPin = sha256(pin);
-
-  await db.run(`
-    INSERT INTO employees (id, name, pin, role, phone)
-    VALUES (?, ?, ?, ?, ?)
-  `, [id, name, hashedPin, role || 'cashier', phone || null]);
-
-  return res.json({ success: true, id });
-});
+// Catatan: endpoint /register lama DIHAPUS — dulu publik tanpa auth sehingga
+// siapa pun di internet bisa membuat akun ber-role admin. Pembuatan karyawan
+// kini hanya lewat POST /api/employees (terproteksi token).
 
 export default router;

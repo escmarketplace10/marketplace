@@ -12,19 +12,16 @@ router.post('/push', async (req: Request, res: Response) => {
   if (!items?.length) return res.json({ success: true, synced: 0 });
 
   let synced = 0;
-  const doSync = async () => {
-    for (const item of items) {
-      const { entity_type, entity_id, action, payload } = item;
-      // Store in sync queue for processing
-      await db.run(`
-        INSERT INTO sync_queue (id, entity_type, entity_id, action, payload, status)
-        VALUES (?, ?, ?, ?, ?, 'synced')
-      `, [uuid(), entity_type, entity_id, action, JSON.stringify(payload)]);
-      synced++;
-    }
-  };
+  for (const item of items) {
+    const { entity_type, entity_id, action, payload } = item;
+    // Store in sync queue for processing
+    await db.run(`
+      INSERT INTO sync_queue (id, entity_type, entity_id, action, payload, status)
+      VALUES (?, ?, ?, ?, ?, 'synced')
+    `, [uuid(), entity_type, entity_id, action, JSON.stringify(payload)]);
+    synced++;
+  }
 
-  doSync();
   return res.json({ success: true, synced });
 });
 

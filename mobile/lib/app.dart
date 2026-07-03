@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'config/app_config.dart';
 import 'core/theme.dart';
 import 'screens/store_login_screen.dart';
 import 'screens/login_screen.dart';

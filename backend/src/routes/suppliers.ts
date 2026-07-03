@@ -9,7 +9,7 @@ router.get('/', async (req: Request, res: Response) => {
   const { search } = req.query;
   let query = 'SELECT * FROM suppliers WHERE 1=1';
   const params: any[] = [];
-  if (search) { query += ' AND (name LIKE ? OR contact_person LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
+  if (search) { query += ' AND (name ILIKE ? OR contact_person ILIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
   query += ' ORDER BY name ASC';
   return res.json(await db.all(query, params));
 });
@@ -36,7 +36,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   await db.run(`
     UPDATE suppliers SET name = COALESCE(?, name), contact_person = COALESCE(?, contact_person),
     phone = COALESCE(?, phone), email = COALESCE(?, email), address = COALESCE(?, address),
-    is_active = COALESCE(?, is_active), updated_at = datetime('now') WHERE id = ?
+    is_active = COALESCE(?, is_active), updated_at = now() WHERE id = ?
   `, [name || null, contact_person || null, phone || null, email || null, address || null, is_active ?? null, req.params.id]);
   return res.json({ success: true });
 });

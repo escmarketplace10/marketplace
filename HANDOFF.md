@@ -93,9 +93,11 @@ D:\POS ESC\
 
 ## 5. Kredensial Akses
 
-- **Website Admin / Login Toko Mobile:**
-  - **Email:** `admin@kantinku.com`
-  - **Password:** `password123`
+> ⚠️ **JANGAN PERNAH menulis password di file ini** — repo ini pernah PUBLIC di GitHub
+> dan password admin sempat bocor di riwayat commit. Password sudah wajib diganti
+> lewat menu **Ganti Password** di sidebar web admin.
+
+- **Website Admin / Login Toko Mobile:** email admin + password (disimpan pribadi, bukan di repo)
 - **Dashboard Vercel:** (User login menggunakan akun Vercel mereka sendiri)
 - **Database Supabase:** (User login menggunakan akun Supabase mereka)
 - **URL Produksi:** `https://escmarketplace.vercel.app`
@@ -138,7 +140,23 @@ C:\src\flutter\bin\flutter.bat build apk --release
 
 ---
 
-## 7. Hal yang Mungkin Dikerjakan Selanjutnya oleh Claude
+## 7. Perbaikan Besar (Juli 2026, oleh Claude)
+
+Audit menemukan migrasi SQLite→Postgres sebelumnya menyisakan banyak bug fatal. Semua sudah diperbaiki:
+
+1. **Query rusak di Postgres** — `datetime('now')` & `strftime()` (fungsi SQLite) tersebar di 11 titik → semua UPDATE (produk/pelanggan/karyawan/supplier), pembuatan transaksi kasir, terima PO, dan setoran penitip GAGAL di production. Diganti `now()` / `EXTRACT(HOUR ...)`.
+2. **`db.get`/`db.all`/`db.run` tertukar sistemik** — transaksi kasir selalu gagal (product lookup pakai `all`), laba-rugi tampil NaN, daftar mutasi stok & stok-rendah mengembalikan `{success:true}` alih-alih data, rekap penitip menghitung ulang penjualan yang SUDAH disetor (risiko bayar dobel), dsb.
+3. **Operasi async tidak di-`await`** (adjust stok, opname, buat/terima PO, redeem poin) — di Vercel serverless respons terkirim lalu proses dibekukan → data bisa hilang diam-diam. Sekarang semua di-`await` + dibungkus transaksi DB atomic.
+4. **Keamanan API** — sebelumnya SEMUA endpoint publik tanpa auth (siapa pun di internet bisa hapus produk, baca data pelanggan, bahkan `POST /auth/register` membuat akun admin sendiri!). Sekarang: login PIN karyawan menghasilkan JWT, middleware `requireAuth` melindungi seluruh `/api/*` kecuali endpoint login & health; `/auth/register` dihapus.
+5. **JWT secret** tidak lagi hardcoded di repo — pakai env `JWT_SECRET`, fallback diturunkan dari `DATABASE_URL` (rahasia).
+6. **Driver pg** mengembalikan NUMERIC/COUNT sebagai string — ditambah type parser supaya angka tetap angka.
+7. **Ketidakcocokan API web admin** — `profit-loss` kini menerima `from`/`to`, mengembalikan `cogs`, `consignor_commissions` (bagian penitip), dan `items` untuk export Excel; `summary` mengembalikan bentuk flat (web) + nested (Flutter) sekaligus.
+8. **Fitur kafe di aplikasi kasir**: catatan per item (tap item di keranjang — "less sugar", dll), **Tahan Pesanan / open bill** (tombol "Tahan" + chip "Ditahan (n)" untuk lanjut), pencarian produk case-insensitive (ILIKE).
+9. **Ganti Password admin** — endpoint `POST /api/admin/change-password` + menu di sidebar web admin.
+
+**Konsekuensi deploy**: setelah deploy versi ini, semua sesi lama tidak valid (secret berubah) — login ulang di web admin & aplikasi kasir (APK harus di-build ulang karena API kini wajib token). Set env `JWT_SECRET` di Vercel (nilai acak panjang) untuk keamanan maksimal.
+
+## 8. Hal yang Mungkin Dikerjakan Selanjutnya oleh Claude
 - Menambahkan notifikasi _push_ (FCM) jika ada pesanan khusus.
 - Mengubah desain halaman kasir (Flutter) menjadi gaya premium seperti _Web Admin_.
 - Mengimplementasikan fitur pencetakan (*Bluetooth Thermal Printer*) di Flutter (saat ini belum didukung).

@@ -58,7 +58,7 @@ router.get('/', async (req: Request, res: Response) => {
   const params: any[] = [];
 
   if (category_id) { query += ' AND p.category_id = ?'; params.push(category_id); }
-  if (search) { query += ' AND p.name LIKE ?'; params.push(`%${search}%`); }
+  if (search) { query += ' AND p.name ILIKE ?'; params.push(`%${search}%`); }
   if (is_active !== undefined) { query += ' AND p.is_active = ?'; params.push(Number(is_active)); }
 
   query += ' ORDER BY p.name ASC';
@@ -70,7 +70,7 @@ router.get('/', async (req: Request, res: Response) => {
 // GET /api/products/:id - Get single product with modifiers
 router.get('/:id', async (req: Request, res: Response) => {
   const db = getDb();
-  const product = await db.all(`
+  const product = await db.get(`
     SELECT p.*, c.name as category_name
     FROM products p
     LEFT JOIN categories c ON p.category_id = c.id
@@ -79,7 +79,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 
   if (!product) return res.status(404).json({ error: 'Product not found' });
 
-  const modifiers = await db.get(`
+  const modifiers = await db.all(`
     SELECT pm.*, mo.id as option_id, mo.name as option_name, mo.price as option_price
     FROM product_modifiers pm
     LEFT JOIN modifier_options mo ON mo.modifier_id = pm.id
@@ -140,7 +140,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   const db = getDb();
   const { name, price, cost_price, stock, min_stock, is_active, barcode, category_id, unit, consignor_id, commission_percent } = req.body;
 
-  const existing = await db.run('SELECT * FROM products WHERE id = ?', [req.params.id]);
+  const existing = await db.get('SELECT * FROM products WHERE id = ?', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Product not found' });
 
   await db.run(`
@@ -156,7 +156,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       unit = COALESCE(?, unit),
       consignor_id = ?,
       commission_percent = ?,
-      updated_at = datetime('now')
+      updated_at = now()
     WHERE id = ?
   `, [name || null, price ?? null, cost_price ?? null, stock ?? null, min_stock ?? null, is_active ?? null, barcode || null, category_id || null, unit || null, consignor_id ?? null, commission_percent ?? null, req.params.id]);
 
@@ -171,7 +171,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 // DELETE /api/products/:id - Soft delete
 router.delete('/:id', async (req: Request, res: Response) => {
   const db = getDb();
-  await db.run('UPDATE products SET is_active = 0, updated_at = datetime(\'now\') WHERE id = ?', [req.params.id]);
+  await db.run('UPDATE products SET is_active = 0, updated_at = now() WHERE id = ?', [req.params.id]);
   return res.json({ success: true });
 });
 

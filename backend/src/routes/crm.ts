@@ -24,17 +24,16 @@ router.post('/redeem-points', async (req: Request, res: Response) => {
   const { customer_id, points, transaction_id } = req.body;
   if (!customer_id || !points) return res.status(400).json({ error: 'customer_id and points required' });
 
-  const customer = await db.all('SELECT * FROM customers WHERE id = ?', [customer_id]) as any;
+  const customer = await db.get('SELECT * FROM customers WHERE id = ?', [customer_id]) as any;
   if (!customer) return res.status(404).json({ error: 'Customer not found' });
   if (customer.points < points) return res.status(400).json({ error: 'Insufficient points' });
 
-  const doRedeem = async () => {
-    await db.run('UPDATE customers SET points = points - ?, updated_at = datetime(\'now\') WHERE id = ?', [points, customer_id]);
-    await db.run(`INSERT INTO loyalty_points_history (id, customer_id, points, type, transaction_id, description)
+  await db.transaction(async (tx) => {
+    await tx.run('UPDATE customers SET points = points - ?, updated_at = now() WHERE id = ?', [points, customer_id]);
+    await tx.run(`INSERT INTO loyalty_points_history (id, customer_id, points, type, transaction_id, description)
       VALUES (?, ?, ?, 'redeem', ?, ?)`, [uuid(), customer_id, points, transaction_id || null, 'Points redeemed']);
-  };
+  });
 
-  doRedeem();
   return res.json({ success: true, remaining_points: customer.points - points });
 });
 

@@ -116,6 +116,7 @@ class _PosScreenState extends State<PosScreen> {
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: [
+                const _HeldOrdersChip(),
                 _catChip('Semua', '', '🗂'),
                 ..._categories.map((c) => _catChip(c['name'].toString(), c['id'].toString(), (c['icon'] ?? '📦').toString())),
               ],
@@ -276,24 +277,33 @@ class _CartBody extends StatelessWidget {
                   separatorBuilder: (_, __) => const SizedBox(height: 6),
                   itemBuilder: (_, i) {
                     final item = cart.items[i];
-                    return Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(color: AppColors.bg, borderRadius: BorderRadius.circular(12)),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(item.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                                Text(rupiah(item.totalPrice), style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700)),
-                              ],
+                    return InkWell(
+                      onTap: () => _editCartItem(context, cart, item),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(color: AppColors.bg, borderRadius: BorderRadius.circular(12)),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(item.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                  if (item.notes != null)
+                                    Text('📝 ${item.notes}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(fontSize: 11, color: AppColors.muted, fontStyle: FontStyle.italic)),
+                                  Text(rupiah(item.totalPrice), style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700)),
+                                ],
+                              ),
                             ),
-                          ),
-                          _QtyBtn(icon: Icons.remove, onTap: () => cart.changeQty(item, -1)),
-                          SizedBox(width: 28, child: Text('${item.quantity}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800))),
-                          _QtyBtn(icon: Icons.add, onTap: () => cart.changeQty(item, 1)),
-                        ],
+                            _QtyBtn(icon: Icons.remove, onTap: () => cart.changeQty(item, -1)),
+                            SizedBox(width: 28, child: Text('${item.quantity}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800))),
+                            _QtyBtn(icon: Icons.add, onTap: () => cart.changeQty(item, 1)),
+                          ],
+                        ),
                       ),
                     );
                   },
@@ -367,14 +377,23 @@ class _CartFooter extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: AppColors.success),
-              onPressed: cart.isEmpty ? null : () => _pay(context, cart, onPaid),
-              icon: const Icon(Icons.payments),
-              label: Text('BAYAR ${rupiah(cart.grandTotal)}'),
-            ),
+          Row(
+            children: [
+              OutlinedButton.icon(
+                onPressed: cart.isEmpty ? null : () => _holdOrder(context, cart),
+                icon: const Icon(Icons.pause_circle_outline, size: 18),
+                label: const Text('Tahan'),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(backgroundColor: AppColors.success),
+                  onPressed: cart.isEmpty ? null : () => _pay(context, cart, onPaid),
+                  icon: const Icon(Icons.payments),
+                  label: Text('BAYAR ${rupiah(cart.grandTotal)}'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -408,6 +427,136 @@ Future<void> _pay(BuildContext context, Cart cart, VoidCallback onPaid) async {
     isScrollControlled: true,
     builder: (_) => ChangeNotifierProvider.value(value: cart, child: _PaymentSheet(onPaid: onPaid)),
   );
+}
+
+/// Edit catatan item (mis. "less sugar", "tanpa es") atau hapus item dari keranjang.
+Future<void> _editCartItem(BuildContext context, Cart cart, CartItem item) async {
+  final ctrl = TextEditingController(text: item.notes ?? '');
+  final action = await showDialog<String>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(item.name),
+      content: TextField(
+        controller: ctrl,
+        autofocus: true,
+        maxLines: 2,
+        decoration: const InputDecoration(
+          labelText: 'Catatan pesanan',
+          hintText: 'mis. less sugar, tanpa es, extra shot',
+        ),
+      ),
+      actions: [
+        TextButton(
+          style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+          onPressed: () => Navigator.pop(ctx, 'remove'),
+          child: const Text('Hapus Item'),
+        ),
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
+        FilledButton(onPressed: () => Navigator.pop(ctx, 'save'), child: const Text('Simpan')),
+      ],
+    ),
+  );
+  if (action == 'remove') {
+    cart.remove(item);
+  } else if (action == 'save') {
+    cart.setItemNote(item, ctrl.text);
+  }
+}
+
+/// Tahan pesanan (open bill) — simpan keranjang, kosongkan, lanjut layani pembeli lain.
+Future<void> _holdOrder(BuildContext context, Cart cart) async {
+  final held = AppConfig.heldOrders..add(cart.toHeldJson());
+  await AppConfig.setHeldOrders(held);
+  cart.clear();
+  if (!context.mounted) return;
+  showSnack(context, 'Pesanan ditahan. Buka lagi lewat tombol "Ditahan".');
+  Navigator.of(context).maybePop(); // tutup sheet keranjang di layar HP
+}
+
+/// Daftar pesanan yang ditahan: lanjutkan atau hapus.
+Future<void> _showHeldOrders(BuildContext context, Cart cart) async {
+  await showModalBottomSheet(
+    context: context,
+    builder: (_) => StatefulBuilder(
+      builder: (ctx, setS) {
+        final held = AppConfig.heldOrders;
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Text('Pesanan Ditahan', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+              ),
+              if (held.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text('Tidak ada pesanan ditahan.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.muted)),
+                ),
+              ...held.asMap().entries.map((e) {
+                final d = e.value;
+                final itemCount = ((d['items'] ?? []) as List).length;
+                final savedAt = (d['saved_at'] ?? '').toString();
+                final time = savedAt.length >= 16 ? savedAt.substring(11, 16) : '';
+                final ref = (d['order_ref'] ?? '').toString();
+                final customerName = d['customer'] is Map ? (d['customer']['name'] ?? '').toString() : '';
+                final label = ref.isNotEmpty ? ref : (customerName.isNotEmpty ? customerName : 'Pesanan ${e.key + 1}');
+                return ListTile(
+                  leading: const CircleAvatar(child: Icon(Icons.receipt_long)),
+                  title: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: Text('$itemCount item · ${rupiah(toDouble(d['total']))}${time.isEmpty ? '' : ' · $time'}'),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete_outline, color: AppColors.danger),
+                    tooltip: 'Hapus',
+                    onPressed: () async {
+                      final list = AppConfig.heldOrders..removeAt(e.key);
+                      await AppConfig.setHeldOrders(list);
+                      setS(() {});
+                    },
+                  ),
+                  onTap: () async {
+                    if (!cart.isEmpty) {
+                      showSnack(ctx, 'Keranjang masih berisi. Tahan atau selesaikan dulu.', error: true);
+                      return;
+                    }
+                    final list = AppConfig.heldOrders..removeAt(e.key);
+                    await AppConfig.setHeldOrders(list);
+                    cart.restoreHeld(d);
+                    if (ctx.mounted) Navigator.pop(ctx);
+                  },
+                );
+              }),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+  // Sentuh cart supaya chip "Ditahan (n)" ikut ter-update setelah sheet ditutup
+  cart.setOrderType(cart.orderType);
+}
+
+/// Chip pembuka daftar pesanan ditahan — ikut rebuild tiap keranjang berubah.
+class _HeldOrdersChip extends StatelessWidget {
+  const _HeldOrdersChip();
+  @override
+  Widget build(BuildContext context) {
+    final cart = context.watch<Cart>();
+    final count = AppConfig.heldOrders.length;
+    if (count == 0) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ActionChip(
+        avatar: const Icon(Icons.pause_circle_filled, size: 18, color: AppColors.warning),
+        label: Text('Ditahan ($count)', style: const TextStyle(fontWeight: FontWeight.w700)),
+        backgroundColor: Colors.white,
+        side: BorderSide(color: Colors.black.withValues(alpha: 0.08)),
+        onPressed: () => _showHeldOrders(context, cart),
+      ),
+    );
+  }
 }
 
 class _PaymentSheet extends StatefulWidget {

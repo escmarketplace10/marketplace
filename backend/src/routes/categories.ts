@@ -32,7 +32,7 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   const db = getDb();
   const { name, icon, sort_order } = req.body;
-  await db.run('UPDATE categories SET name = COALESCE(?, name), icon = COALESCE(?, icon), sort_order = COALESCE(?, sort_order), updated_at = datetime(\'now\') WHERE id = ?', [name || null, icon || null, sort_order ?? null, req.params.id]);
+  await db.run('UPDATE categories SET name = COALESCE(?, name), icon = COALESCE(?, icon), sort_order = COALESCE(?, sort_order), updated_at = now() WHERE id = ?', [name || null, icon || null, sort_order ?? null, req.params.id]);
   return res.json({ success: true });
 });
 

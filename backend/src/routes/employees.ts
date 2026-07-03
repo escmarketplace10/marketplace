@@ -42,7 +42,7 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   const db = getDb();
   const { name, pin, role, phone, commission_rate, is_active } = req.body;
-  const emp = await db.run('SELECT * FROM employees WHERE id = ?', [req.params.id]) as any;
+  const emp = await db.get('SELECT * FROM employees WHERE id = ?', [req.params.id]) as any;
   if (!emp) return res.status(404).json({ error: 'Employee not found' });
 
   const hashedPin = pin ? sha256(pin) : null;
@@ -54,7 +54,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       phone = COALESCE(?, phone),
       commission_rate = COALESCE(?, commission_rate),
       is_active = COALESCE(?, is_active),
-      updated_at = datetime('now')
+      updated_at = now()
     WHERE id = ?
   `, [name || null, hashedPin, role || null, phone || null, commission_rate ?? null, is_active ?? null, req.params.id]);
   return res.json({ success: true });
@@ -63,7 +63,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 // DELETE /api/employees/:id
 router.delete('/:id', async (req: Request, res: Response) => {
   const db = getDb();
-  await db.run('UPDATE employees SET is_active = 0, updated_at = datetime(\'now\') WHERE id = ?', [req.params.id]);
+  await db.run('UPDATE employees SET is_active = 0, updated_at = now() WHERE id = ?', [req.params.id]);
   return res.json({ success: true });
 });
 

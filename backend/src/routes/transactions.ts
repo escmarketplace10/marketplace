@@ -7,8 +7,10 @@ const router = Router();
 function generateReceiptNumber(): string {
   const now = new Date();
   const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
-  const rand = Math.floor(Math.random() * 9999).toString().padStart(4, '0');
-  return `INV-${dateStr}-${rand}`;
+  // Pakai komponen waktu + acak supaya praktis tidak mungkin tabrakan
+  const timeStr = now.toISOString().slice(11, 19).replace(/:/g, '');
+  const rand = Math.floor(Math.random() * 99).toString().padStart(2, '0');
+  return `INV-${dateStr}-${timeStr}${rand}`;
 }
 
 // GET /api/transactions
@@ -41,7 +43,7 @@ router.get('/', async (req: Request, res: Response) => {
 // GET /api/transactions/:id
 router.get('/:id', async (req: Request, res: Response) => {
   const db = getDb();
-  const transaction = await db.all(`
+  const transaction = await db.get(`
     SELECT t.*, e.name as employee_name, c.name as customer_name
     FROM transactions t
     LEFT JOIN employees e ON t.employee_id = e.id
@@ -51,7 +53,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 
   if (!transaction) return res.status(404).json({ error: 'Transaction not found' });
 
-  const items = await db.get('SELECT * FROM transaction_items WHERE transaction_id = ?', [req.params.id]);
+  const items = await db.all('SELECT * FROM transaction_items WHERE transaction_id = ?', [req.params.id]);
   return res.json({ ...transaction, items });
 });
 
@@ -69,25 +71,23 @@ router.post('/', async (req: Request, res: Response) => {
 
   const trxId = uuid();
   const receiptNumber = generateReceiptNumber();
-  const now = new Date().toISOString();
 
   // Calculate totals
   let subtotal = 0;
   const trxItems: any[] = [];
 
   for (const item of items) {
-    const product = await db.all('SELECT * FROM products WHERE id = ?', [item.product_id]) as any;
+    const product = await db.get('SELECT * FROM products WHERE id = ?', [item.product_id]) as any;
     if (!product) continue;
 
-    const unitPrice = item.unit_price || product.price;
+    const unitPrice = item.unit_price ?? product.price;
     const itemDiscount = item.discount_amount || 0;
     const quantity = item.quantity || 1;
     const totalPrice = (unitPrice * quantity) - itemDiscount;
     subtotal += totalPrice;
 
-    const itemId = uuid();
     trxItems.push({
-      id: itemId,
+      id: uuid(),
       transaction_id: trxId,
       product_id: product.id,
       product_name: product.name,
@@ -97,8 +97,12 @@ router.post('/', async (req: Request, res: Response) => {
       total_price: totalPrice,
       modifier_details: item.modifier_details ? JSON.stringify(item.modifier_details) : null,
       notes: item.notes || null,
-      status: order_type === 'delivery' ? 'pending' : 'pending'
+      status: 'completed'
     });
+  }
+
+  if (!trxItems.length) {
+    return res.status(400).json({ error: 'Produk tidak ditemukan. Muat ulang daftar produk.' });
   }
 
   const discount = discount_total || 0;
@@ -130,7 +134,7 @@ router.post('/', async (req: Request, res: Response) => {
 
       // Deduct stock
       await tx.run(`
-        UPDATE products SET stock = stock - ?, updated_at = datetime('now') WHERE id = ? AND is_track_stock = 1
+        UPDATE products SET stock = stock - ?, updated_at = now() WHERE id = ? AND is_track_stock = 1
       `, [item.quantity, item.product_id]);
       await tx.run(`
         INSERT INTO inventory_movements (id, product_id, type, quantity, reference_type, reference_id, created_by)
@@ -146,12 +150,12 @@ router.post('/', async (req: Request, res: Response) => {
           total_spent = total_spent + ?,
           visit_count = visit_count + 1,
           points = points + ?,
-          updated_at = datetime('now')
+          updated_at = now()
         WHERE id = ?
       `, [grandTotal, pointsEarned, customer_id]);
       await tx.run(`
         INSERT INTO loyalty_points_history (id, customer_id, points, type, transaction_id, description)
-        VALUES (?, ?, ?, 'earn', ?, 'Points from purchase')
+        VALUES (?, ?, ?, 'earn', ?, ?)
       `, [uuid(), customer_id, pointsEarned, trxId, 'Points from purchase #' + receiptNumber]);
     }
   });
@@ -173,13 +177,13 @@ router.post('/:id/void', async (req: Request, res: Response) => {
   if (trx.is_void) return res.status(400).json({ error: 'Transaction already voided' });
 
   await db.transaction(async (tx) => {
-    await tx.run(`UPDATE transactions SET is_void = 1, void_reason = ?, void_by = ?, status = 'voided', updated_at = datetime('now') WHERE id = ?`,
+    await tx.run(`UPDATE transactions SET is_void = 1, void_reason = ?, void_by = ?, status = 'voided', updated_at = now() WHERE id = ?`,
       [reason || 'No reason', void_by || null, req.params.id]);
 
     // Restore stock
     const items = await tx.all('SELECT * FROM transaction_items WHERE transaction_id = ?', [req.params.id]) as any[];
     for (const item of items) {
-      await tx.run('UPDATE products SET stock = stock + ? WHERE id = ?', [item.quantity, item.product_id]);
+      await tx.run('UPDATE products SET stock = stock + ? WHERE id = ? AND is_track_stock = 1', [item.quantity, item.product_id]);
       await tx.run(`INSERT INTO inventory_movements (id, product_id, type, quantity, reference_type, reference_id, notes)
         VALUES (?, ?, 'in', ?, 'void', ?, ?)`,
         [uuid(), item.product_id, item.quantity, req.params.id, 'Restocked from void']);

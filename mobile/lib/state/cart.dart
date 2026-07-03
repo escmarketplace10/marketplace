@@ -89,6 +89,54 @@ class Cart extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Catatan per item (mis. "less sugar", "tanpa es") — khas kebutuhan kafe.
+  void setItemNote(CartItem item, String? note) {
+    item.notes = (note == null || note.trim().isEmpty) ? null : note.trim();
+    notifyListeners();
+  }
+
+  /// Simpan isi keranjang untuk fitur "Tahan Pesanan" (open bill).
+  Map<String, dynamic> toHeldJson() => {
+        'saved_at': DateTime.now().toIso8601String(),
+        'order_type': orderType,
+        'order_ref': orderRef,
+        'discount_percent': discountPercent,
+        'customer': customer,
+        'total': grandTotal,
+        'items': items
+            .map((i) => {
+                  'product_id': i.productId,
+                  'name': i.name,
+                  'unit_price': i.unitPrice,
+                  'quantity': i.quantity,
+                  'discount_amount': i.discountAmount,
+                  'notes': i.notes,
+                })
+            .toList(),
+      };
+
+  /// Pulihkan keranjang dari pesanan yang ditahan.
+  void restoreHeld(Map<String, dynamic> d) {
+    items
+      ..clear()
+      ..addAll(((d['items'] ?? []) as List).map((raw) {
+        final m = Map<String, dynamic>.from(raw);
+        return CartItem(
+          productId: m['product_id'].toString(),
+          name: (m['name'] ?? '').toString(),
+          unitPrice: toDouble(m['unit_price']),
+          quantity: toInt(m['quantity']) == 0 ? 1 : toInt(m['quantity']),
+          discountAmount: toDouble(m['discount_amount']),
+          notes: m['notes']?.toString(),
+        );
+      }));
+    orderType = (d['order_type'] ?? 'dine_in').toString();
+    orderRef = (d['order_ref'] ?? '').toString();
+    discountPercent = toDouble(d['discount_percent']);
+    customer = d['customer'] == null ? null : Map<String, dynamic>.from(d['customer']);
+    notifyListeners();
+  }
+
   void clear() {
     items.clear();
     discountPercent = 0;

@@ -36,8 +36,8 @@ export default function Stocking() {
     try {
       await axios.post('/api/inventory/adjust', {
         product_id: modal.product.id,
-        quantity: modal.type === 'in' ? Math.abs(modal.qty) : -Math.abs(modal.qty),
-        type: modal.type === 'in' ? 'stock_in' : 'stock_out',
+        quantity: Math.abs(modal.qty),
+        type: modal.type === 'in' ? 'in' : 'out',
         notes: modal.notes || 'Adjustment manual admin'
       }, { headers });
       setModal(null);

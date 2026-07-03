@@ -12,7 +12,7 @@ router.get('/', async (req: Request, res: Response) => {
   let query = 'SELECT * FROM customers WHERE 1=1';
   const params: any[] = [];
 
-  if (search) { query += ' AND (name LIKE ? OR phone LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
+  if (search) { query += ' AND (name ILIKE ? OR phone ILIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
   if (phone) { query += ' AND phone = ?'; params.push(phone); }
 
   query += ' ORDER BY name ASC';
@@ -38,7 +38,7 @@ router.post('/', async (req: Request, res: Response) => {
   if (phone) {
     const existing = await db.get('SELECT * FROM customers WHERE phone = ?', [phone]) as any;
     if (existing) {
-      await db.run('UPDATE customers SET visit_count = visit_count + 1, updated_at = datetime(\'now\') WHERE id = ?', [existing.id]);
+      await db.run('UPDATE customers SET visit_count = visit_count + 1, updated_at = now() WHERE id = ?', [existing.id]);
       return res.json(existing);
     }
   }
@@ -63,7 +63,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       email = COALESCE(?, email),
       birthday = COALESCE(?, birthday),
       notes = COALESCE(?, notes),
-      updated_at = datetime('now')
+      updated_at = now()
     WHERE id = ?
   `, [name || null, phone || null, email || null, birthday || null, notes || null, req.params.id]);
   return res.json({ success: true });
@@ -75,7 +75,7 @@ router.post('/:id/deposit', async (req: Request, res: Response) => {
   const { amount } = req.body;
   if (!amount || amount <= 0) return res.status(400).json({ error: 'Valid amount required' });
 
-  await db.run('UPDATE customers SET deposit_balance = deposit_balance + ?, updated_at = datetime(\'now\') WHERE id = ?', [amount, req.params.id]);
+  await db.run('UPDATE customers SET deposit_balance = deposit_balance + ?, updated_at = now() WHERE id = ?', [amount, req.params.id]);
   return res.json({ success: true });
 });
 

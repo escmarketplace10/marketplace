@@ -1,9 +1,11 @@
+import 'express-async-errors'; // error di handler async otomatis masuk error-middleware
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import path from 'path';
 import fs from 'fs';
 import { getDb, closeDb, initializeSchema } from './database';
+import { requireAuth } from './middleware/requireAuth';
 
 import authRoutes from './routes/auth';
 import productRoutes from './routes/products';
@@ -33,17 +35,27 @@ app.use(morgan('dev'));
 let isInitialized = false;
 let initPromise: Promise<void> | null = null;
 
-app.use(async (_req, _res, next) => {
+app.use(async (_req, res, next) => {
   if (!isInitialized) {
     if (!initPromise) {
-      initPromise = initializeSchema().then(() => { isInitialized = true; }).catch(console.error);
+      initPromise = initializeSchema().then(() => { isInitialized = true; });
     }
-    await initPromise;
+    try {
+      await initPromise;
+    } catch (e) {
+      initPromise = null; // supaya request berikutnya mencoba lagi
+      console.error('Gagal inisialisasi database:', e);
+      return res.status(500).json({ error: 'Database belum siap. Coba lagi.' });
+    }
   }
   next();
 });
 
 // Static file routing removed for Supabase Storage
+
+// Semua endpoint /api/* wajib login (kecuali /health & endpoint login) —
+// API ini publik di internet, tanpa ini siapa pun bisa baca/ubah data toko.
+app.use(requireAuth);
 
 // Routes
 app.use('/api/auth', authRoutes);

@@ -34,6 +34,8 @@ class Api {
   static dynamic _decode(http.Response res) {
     final body = res.body.isEmpty ? null : jsonDecode(res.body);
     if (res.statusCode >= 200 && res.statusCode < 300) return body;
+    // Token kedaluwarsa/tidak valid — bersihkan sesi supaya app kembali ke login
+    if (res.statusCode == 401 && AppConfig.token != null) AppConfig.clearSession();
     final msg = (body is Map && body['error'] != null)
         ? body['error'].toString()
         : 'Gagal (${res.statusCode})';
@@ -78,9 +80,6 @@ class Api {
   static Future<Map<String, dynamic>> login(String pin) async =>
       Map<String, dynamic>.from(await _send('POST', '/auth/login', {'pin': pin}));
 
-  static Future<dynamic> registerEmployee(Map<String, dynamic> data) =>
-      _send('POST', '/auth/register', data);
-
   // ---- Categories ----
   static Future<List<dynamic>> categories() async => List.from(await _get('/categories'));
   static Future<dynamic> createCategory(Map<String, dynamic> d) => _send('POST', '/categories', d);
@@ -120,16 +119,6 @@ class Api {
   static Future<dynamic> createEmployee(Map<String, dynamic> d) => _send('POST', '/employees', d);
   static Future<dynamic> updateEmployee(String id, Map<String, dynamic> d) => _send('PUT', '/employees/$id', d);
   static Future<dynamic> deleteEmployee(String id) => _send('DELETE', '/employees/$id');
-
-  // ---- Shifts ----
-  static Future<List<dynamic>> shifts({String? status, String? employeeId}) async =>
-      List.from(await _get('/shifts', {'status': status, 'employee_id': employeeId}));
-  static Future<Map<String, dynamic>> openShift(String employeeId, num initialCash) async =>
-      Map<String, dynamic>.from(await _send('POST', '/shifts/open', {'employee_id': employeeId, 'initial_cash': initialCash}));
-  static Future<Map<String, dynamic>> closeShift(String id, num actualCash, String? notes) async =>
-      Map<String, dynamic>.from(await _send('POST', '/shifts/$id/close', {'actual_cash': actualCash, 'notes': notes}));
-  static Future<Map<String, dynamic>> shiftSummary(String id) async =>
-      Map<String, dynamic>.from(await _get('/shifts/$id/summary'));
 
   // ---- Inventory ----
   static Future<List<dynamic>> movements({Map<String, dynamic>? params}) async =>

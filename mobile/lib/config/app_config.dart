@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Menyimpan konfigurasi aplikasi (alamat server, sesi login terakhir)
@@ -64,5 +65,22 @@ class AppConfig {
   static Future<void> setCashDenoms(List<int> denoms) async {
     final clean = denoms.where((e) => e > 0).toList()..sort();
     await _prefs.setString(_kDenoms, clean.join(','));
+  }
+
+  // ---- Pesanan ditahan / open bill (fitur kafe) ----
+  static const _kHeldOrders = 'held_orders';
+
+  static List<Map<String, dynamic>> get heldOrders {
+    final raw = _prefs.getString(_kHeldOrders);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      return (jsonDecode(raw) as List).map((e) => Map<String, dynamic>.from(e)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<void> setHeldOrders(List<Map<String, dynamic>> orders) async {
+    await _prefs.setString(_kHeldOrders, jsonEncode(orders));
   }
 }

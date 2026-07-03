@@ -6,7 +6,7 @@ const router = Router();
 
 /** Hitung total penjualan/komisi/terutang sejak setoran terakhir (atau sejak awal bila belum pernah setor). */
 async function unsettledSummary(db: any, consignorId: string, until?: string) {
-  const last = await db.all('SELECT MAX(period_end) as last_end FROM consignment_settlements WHERE consignor_id = ?', [consignorId]) as any;
+  const last = await db.get('SELECT MAX(period_end) as last_end FROM consignment_settlements WHERE consignor_id = ?', [consignorId]) as any;
   const since = last?.last_end || '1970-01-01 00:00:00';
 
   let query = `
@@ -33,7 +33,7 @@ router.get('/', async (req: Request, res: Response) => {
   const { search } = req.query;
   let query = "SELECT * FROM consignors WHERE is_active = 1";
   const params: any[] = [];
-  if (search) { query += ' AND name LIKE ?'; params.push(`%${search}%`); }
+  if (search) { query += ' AND name ILIKE ?'; params.push(`%${search}%`); }
   query += ' ORDER BY name ASC';
 
   const consignors = await db.all(query, params) as any[];
@@ -54,7 +54,7 @@ router.get('/:id/report', async (req: Request, res: Response) => {
   const db = getDb();
   const summary = await unsettledSummary(db, req.params.id);
 
-  const items = await db.get(`
+  const items = await db.all(`
     SELECT t.receipt_number, t.created_at,
            ti.product_name, ti.quantity, ti.unit_price, ti.total_price,
            p.commission_percent,
@@ -92,13 +92,13 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   const db = getDb();
   const { name, phone, notes, is_active } = req.body;
-  await db.get(`
+  await db.run(`
     UPDATE consignors SET
       name = COALESCE(?, name),
       phone = COALESCE(?, phone),
       notes = COALESCE(?, notes),
       is_active = COALESCE(?, is_active),
-      updated_at = datetime('now')
+      updated_at = now()
     WHERE id = ?
   `, [name || null, phone || null, notes || null, is_active ?? null, req.params.id]);
   return res.json({ success: true });
@@ -107,21 +107,21 @@ router.put('/:id', async (req: Request, res: Response) => {
 // DELETE /api/consignors/:id - Hapus penitip (ditolak bila masih ada produk titipannya)
 router.delete('/:id', async (req: Request, res: Response) => {
   const db = getDb();
-  const productCount = await db.run('SELECT COUNT(*) as count FROM products WHERE consignor_id = ?', [req.params.id]) as any;
+  const productCount = await db.get('SELECT COUNT(*) as count FROM products WHERE consignor_id = ?', [req.params.id]) as any;
   if (productCount.count > 0) {
     return res.status(400).json({ error: 'Tidak bisa hapus penitip yang masih punya produk titipan.' });
   }
-  await db.get('DELETE FROM consignors WHERE id = ?', [req.params.id]);
+  await db.run('DELETE FROM consignors WHERE id = ?', [req.params.id]);
   return res.json({ success: true });
 });
 
 // POST /api/consignors/:id/settle - Catat setoran (tandai penjualan saat ini sebagai sudah dibayar)
 router.post('/:id/settle', async (req: Request, res: Response) => {
   const db = getDb();
-  const consignor = await db.run('SELECT * FROM consignors WHERE id = ?', [req.params.id]);
+  const consignor = await db.get('SELECT * FROM consignors WHERE id = ?', [req.params.id]);
   if (!consignor) return res.status(404).json({ error: 'Penitip tidak ditemukan' });
 
-  const periodEnd = (await db.get("SELECT datetime('now') as t") as any).t;
+  const periodEnd = (await db.get('SELECT now() as t') as any).t;
   const summary = await unsettledSummary(db, req.params.id, periodEnd);
   if (summary.total_sales <= 0) {
     return res.status(400).json({ error: 'Tidak ada penjualan yang belum disetor.' });

@@ -33,7 +33,7 @@ router.get('/', async (req: Request, res: Response) => {
 // GET /api/purchase-orders/:id
 router.get('/:id', async (req: Request, res: Response) => {
   const db = getDb();
-  const po = await db.all(`
+  const po = await db.get(`
     SELECT po.*, s.name as supplier_name
     FROM purchase_orders po
     LEFT JOIN suppliers s ON po.supplier_id = s.id
@@ -41,7 +41,7 @@ router.get('/:id', async (req: Request, res: Response) => {
   `, [req.params.id]) as any;
   if (!po) return res.status(404).json({ error: 'PO not found' });
 
-  const items = await db.get(`
+  const items = await db.all(`
     SELECT poi.*, p.name as product_name, p.sku
     FROM purchase_order_items poi
     LEFT JOIN products p ON poi.product_id = p.id
@@ -59,62 +59,65 @@ router.post('/', async (req: Request, res: Response) => {
 
   const id = uuid();
   const poNumber = generatePONumber();
+
+  // Hitung total dulu supaya bisa disimpan sekaligus & dikembalikan di respons
   let totalAmount = 0;
+  const poItems = items.map((item: any) => {
+    const unitCost = item.unit_cost || 0;
+    const qty = item.quantity || 1;
+    const total = unitCost * qty;
+    totalAmount += total;
+    return { id: uuid(), product_id: item.product_id, quantity: qty, unit_cost: unitCost, total_cost: total };
+  });
 
-  const doCreate = async () => {
-    await db.run('INSERT INTO purchase_orders (id, po_number, supplier_id, notes) VALUES (?, ?, ?, ?)', [id, poNumber, supplier_id, notes || null]);
+  await db.transaction(async (tx) => {
+    await tx.run('INSERT INTO purchase_orders (id, po_number, supplier_id, notes, total_amount) VALUES (?, ?, ?, ?, ?)',
+      [id, poNumber, supplier_id, notes || null, totalAmount]);
 
-    for (const item of items) {
-      const unitCost = item.unit_cost || 0;
-      const qty = item.quantity || 1;
-      const total = unitCost * qty;
-      totalAmount += total;
-
-      await db.run(`
+    for (const item of poItems) {
+      await tx.run(`
         INSERT INTO purchase_order_items (id, po_id, product_id, quantity, unit_cost, total_cost)
         VALUES (?, ?, ?, ?, ?, ?)
-      `, [uuid(), id, item.product_id, qty, unitCost, total]);
+      `, [item.id, id, item.product_id, item.quantity, item.unit_cost, item.total_cost]);
     }
+  });
 
-    await db.run('UPDATE purchase_orders SET total_amount = ? WHERE id = ?', [totalAmount, id]);
-  };
-
-  doCreate();
   return res.json({ success: true, id, po_number: poNumber, total_amount: totalAmount });
 });
 
 // POST /api/purchase-orders/:id/receive - Receive PO (add stock)
 router.post('/:id/receive', async (req: Request, res: Response) => {
   const db = getDb();
-  const po = await db.run('SELECT * FROM purchase_orders WHERE id = ?', [req.params.id]) as any;
+  const po = await db.get('SELECT * FROM purchase_orders WHERE id = ?', [req.params.id]) as any;
   if (!po) return res.status(404).json({ error: 'PO not found' });
   if (po.status === 'received') return res.status(400).json({ error: 'PO already received' });
 
-  const doReceive = async () => {
-    await db.get("UPDATE purchase_orders SET status = 'received', received_at = datetime('now') WHERE id = ?", [req.params.id]);
+  await db.transaction(async (tx) => {
+    await tx.run("UPDATE purchase_orders SET status = 'received', received_at = now() WHERE id = ?", [req.params.id]);
 
-    const items = await db.all('SELECT * FROM purchase_order_items WHERE po_id = ?', [req.params.id]) as any[];
+    const items = await tx.all('SELECT * FROM purchase_order_items WHERE po_id = ?', [req.params.id]) as any[];
     for (const item of items) {
       const qty = item.quantity;
-      await db.run('UPDATE products SET stock = stock + ?, updated_at = datetime(\'now\') WHERE id = ?', [qty, item.product_id]);
-      await db.run('UPDATE purchase_order_items SET received_quantity = ? WHERE id = ?', [qty, item.id]);
-      await db.run(`INSERT INTO inventory_movements (id, product_id, type, quantity, reference_type, reference_id, notes)
+      await tx.run('UPDATE products SET stock = stock + ?, updated_at = now() WHERE id = ?', [qty, item.product_id]);
+      await tx.run('UPDATE purchase_order_items SET received_quantity = ? WHERE id = ?', [qty, item.id]);
+      await tx.run(`INSERT INTO inventory_movements (id, product_id, type, quantity, reference_type, reference_id, notes)
         VALUES (?, ?, 'in', ?, 'purchase', ?, ?)`, [uuid(), item.product_id, qty, req.params.id, `PO Received: ${po.po_number}`]);
     }
-  };
+  });
 
-  doReceive();
   return res.json({ success: true });
 });
 
 // DELETE /api/purchase-orders/:id
 router.delete('/:id', async (req: Request, res: Response) => {
   const db = getDb();
-  const po = await db.all('SELECT * FROM purchase_orders WHERE id = ?', [req.params.id]) as any;
+  const po = await db.get('SELECT * FROM purchase_orders WHERE id = ?', [req.params.id]) as any;
   if (!po) return res.status(404).json({ error: 'PO not found' });
   if (po.status === 'received') return res.status(400).json({ error: 'Cannot delete received PO' });
-  await db.run('DELETE FROM purchase_order_items WHERE po_id = ?', [req.params.id]);
-  await db.run('DELETE FROM purchase_orders WHERE id = ?', [req.params.id]);
+  await db.transaction(async (tx) => {
+    await tx.run('DELETE FROM purchase_order_items WHERE po_id = ?', [req.params.id]);
+    await tx.run('DELETE FROM purchase_orders WHERE id = ?', [req.params.id]);
+  });
   return res.json({ success: true });
 });
 

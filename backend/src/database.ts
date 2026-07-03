@@ -1,10 +1,13 @@
-import { Pool } from 'pg';
+import { Pool, types } from 'pg';
 import dotenv from 'dotenv';
-import path from 'path';
-import fs from 'fs';
 
 // Load env vars
 dotenv.config();
+
+// Driver pg mengembalikan NUMERIC/BIGINT sebagai string — parse jadi angka
+// supaya SUM/COUNT/harga tidak berubah jadi string di respons JSON.
+types.setTypeParser(1700, (v) => parseFloat(v)); // NUMERIC
+types.setTypeParser(20, (v) => parseInt(v, 10)); // BIGINT (hasil COUNT)
 
 let pool: Pool;
 
