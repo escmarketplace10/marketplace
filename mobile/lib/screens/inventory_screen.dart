@@ -49,7 +49,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         builder: (ctx, setS) => AlertDialog(
           title: Text('Sesuaikan Stok — ${product['name']}'),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text('Stok sekarang: ${toDouble(product['stock']).toStringAsFixed(0)} ${product['unit'] ?? ''}'),
+            Text('Stok sekarang: ${formatStock(toDouble(product['stock']), product['unit']?.toString())} ${product['unit'] ?? ''}'),
             const SizedBox(height: 12),
             SegmentedButton<String>(
               segments: const [
@@ -61,7 +61,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
               onSelectionChanged: (s) => setS(() => type = s.first),
             ),
             const SizedBox(height: 12),
-            TextField(controller: qtyCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Jumlah')),
+            TextField(controller: qtyCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Jumlah')),
           ]),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
@@ -124,12 +124,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
                             return Card(
                               child: ListTile(
                                 title: Text(p['name'].toString(), style: const TextStyle(fontWeight: FontWeight.w700)),
-                                subtitle: Text('${p['category_name'] ?? ''} · min ${toDouble(p['min_stock']).toStringAsFixed(0)}'),
+                                subtitle: Text('${p['category_name'] ?? ''} · min ${formatStock(toDouble(p['min_stock']), p['unit']?.toString())}'),
                                 trailing: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
-                                    Text('${stock.toStringAsFixed(0)} ${p['unit'] ?? ''}',
+                                    Text('${formatStock(stock, p['unit']?.toString())} ${p['unit'] ?? ''}',
                                         style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: low ? AppColors.danger : AppColors.ink)),
                                     if (low) const Text('menipis', style: TextStyle(color: AppColors.danger, fontSize: 11)),
                                   ],

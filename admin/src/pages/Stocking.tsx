@@ -2,6 +2,16 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Search, Package, ArrowUpDown } from 'lucide-react';
 
+const DECIMAL_UNITS = new Set(['Kg', 'Mg', 'gram', 'liter', 'ml']);
+
+const fmtStock = (n: number, unit?: string) => {
+  if (unit && DECIMAL_UNITS.has(unit)) {
+    if (n === Math.floor(n)) return new Intl.NumberFormat('id-ID').format(n);
+    return new Intl.NumberFormat('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 2 }).format(n);
+  }
+  return new Intl.NumberFormat('id-ID').format(Math.floor(n));
+};
+
 const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n);
 
 export default function Stocking() {
@@ -117,7 +127,7 @@ export default function Stocking() {
                     <td>{p.category_name || '-'}</td>
                     <td style={{ textAlign: 'center' }}>
                       <span style={{ fontWeight: 700, fontSize: 16, color: p.stock <= 0 ? 'var(--danger)' : p.stock <= (p.min_stock || 0) ? 'var(--warning)' : 'var(--text-primary)' }}>
-                        {fmt(p.stock)} {p.unit}
+                        {fmtStock(p.stock, p.unit)} {p.unit}
                       </span>
                     </td>
                     <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{p.min_stock || 0}</td>
@@ -160,14 +170,15 @@ export default function Stocking() {
               <div className="form-group">
                 <label className="form-label">Stok Saat Ini</label>
                 <div style={{ fontWeight: 700, fontSize: 22, color: 'var(--primary)', padding: '8px 0' }}>
-                  {fmt(modal.product.stock)} {modal.product.unit}
+                  {fmtStock(modal.product.stock, modal.product.unit)} {modal.product.unit}
                 </div>
               </div>
               <div className="form-group">
                 <label className="form-label">Jumlah {modal.type === 'in' ? 'Masuk' : 'Keluar'}</label>
                 <input
                   type="number"
-                  min={1}
+                  min={0}
+                  step={DECIMAL_UNITS.has(modal.product.unit) ? '0.01' : '1'}
                   className="form-input"
                   value={modal.qty}
                   onChange={e => setModal((m: any) => ({ ...m, qty: Number(e.target.value) }))}

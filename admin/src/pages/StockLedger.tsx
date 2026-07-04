@@ -5,6 +5,15 @@ import { History, ArrowDownCircle, ArrowUpCircle, Settings2 } from 'lucide-react
 const fmtDateTime = (s: string) =>
   new Date(s).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+const DECIMAL_UNITS = new Set(['Kg', 'Mg', 'gram', 'liter', 'ml']);
+const fmtStock = (n: number, unit?: string) => {
+  if (unit && DECIMAL_UNITS.has(unit)) {
+    if (n === Math.floor(n)) return String(n);
+    return n.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+  }
+  return String(Math.floor(n));
+};
+
 const TYPE_BADGE: Record<string, { cls: string; label: string; icon: any }> = {
   in: { cls: 'badge-green', label: 'Masuk', icon: ArrowDownCircle },
   out: { cls: 'badge-red', label: 'Keluar', icon: ArrowUpCircle },
@@ -135,7 +144,7 @@ export default function StockLedger() {
                         {m.sku && <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{m.sku}</div>}
                       </td>
                       <td><span className={`badge ${t.cls}`}>{t.label}</span></td>
-                      <td style={{ textAlign: 'center', fontWeight: 700 }}>{m.quantity} {m.unit || ''}</td>
+                      <td style={{ textAlign: 'center', fontWeight: 700 }}>{fmtStock(m.quantity, m.unit)} {m.unit || ''}</td>
                       <td><span className="badge badge-gray">{REF_LABEL[m.reference_type] || m.reference_type || '-'}</span></td>
                       <td style={{ maxWidth: 240, fontSize: 12.5, color: 'var(--text-secondary)' }}>{m.notes || '-'}</td>
                       <td style={{ fontSize: 12.5, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{m.created_by || '-'}</td>

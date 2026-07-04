@@ -102,9 +102,11 @@ class _MenuScreenState extends State<MenuScreen> {
     final nameCtrl = TextEditingController(text: existing?['name']?.toString() ?? '');
     final priceCtrl = TextEditingController(text: existing != null ? toDouble(existing['price']).toStringAsFixed(0) : '');
     final costCtrl = TextEditingController(text: existing != null ? toDouble(existing['cost_price']).toStringAsFixed(0) : '');
-    final stockCtrl = TextEditingController(text: existing != null ? toDouble(existing['stock']).toStringAsFixed(0) : '0');
-    final minStockCtrl = TextEditingController(text: existing != null ? toDouble(existing['min_stock']).toStringAsFixed(0) : '0');
-    final unitCtrl = TextEditingController(text: existing?['unit']?.toString() ?? 'pcs');
+    final existingUnit = existing?['unit']?.toString();
+    final stockCtrl = TextEditingController(text: existing != null ? formatStock(toDouble(existing['stock']), existingUnit) : '0');
+    final minStockCtrl = TextEditingController(text: existing != null ? formatStock(toDouble(existing['min_stock']), existingUnit) : '0');
+    String selectedUnit = existing?['unit']?.toString() ?? 'pcs';
+    if (!kUnitOptions.contains(selectedUnit)) selectedUnit = 'pcs';
     String catId = existing?['category_id']?.toString() ?? (_activeCat.isNotEmpty ? _activeCat : _categories.first['id'].toString());
     bool trackStock = existing == null ? true : toInt(existing['is_track_stock']) == 1;
     bool isConsignment = existing?['consignor_id'] != null;
@@ -179,14 +181,20 @@ class _MenuScreenState extends State<MenuScreen> {
                 value: trackStock,
                 onChanged: (v) => setS(() => trackStock = v),
               ),
-              if (trackStock)
+              if (trackStock) ...[
                 Row(children: [
-                  Expanded(child: TextField(controller: stockCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Stok'))),
+                  Expanded(child: TextField(controller: stockCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Stok'))),
                   const SizedBox(width: 8),
-                  Expanded(child: TextField(controller: minStockCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Stok min'))),
-                  const SizedBox(width: 8),
-                  SizedBox(width: 70, child: TextField(controller: unitCtrl, decoration: const InputDecoration(labelText: 'Satuan'))),
+                  Expanded(child: TextField(controller: minStockCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Stok min'))),
                 ]),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedUnit,
+                  decoration: const InputDecoration(labelText: 'Satuan'),
+                  items: kUnitOptions.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
+                  onChanged: (v) => setS(() { if (v != null) selectedUnit = v; }),
+                ),
+              ],
               const SizedBox(height: 8),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -236,7 +244,7 @@ class _MenuScreenState extends State<MenuScreen> {
           'name': nameCtrl.text,
           'price': double.tryParse(priceCtrl.text) ?? 0,
           'cost_price': double.tryParse(costCtrl.text) ?? 0,
-          'unit': unitCtrl.text.isEmpty ? 'pcs' : unitCtrl.text,
+          'unit': selectedUnit,
           'stock': double.tryParse(stockCtrl.text) ?? 0,
           'min_stock': double.tryParse(minStockCtrl.text) ?? 0,
           'is_track_stock': trackStock ? 1 : 0,
@@ -339,7 +347,7 @@ class _MenuScreenState extends State<MenuScreen> {
                                   ),
                                   title: Text(p['name'].toString(), style: const TextStyle(fontWeight: FontWeight.w700)),
                                   subtitle: Text('${rupiah(toDouble(p['price']))}'
-                                      '${toInt(p['is_track_stock']) == 1 ? ' · stok ${toDouble(p['stock']).toStringAsFixed(0)} ${p['unit'] ?? ''}' : ''}'
+                                      '${toInt(p['is_track_stock']) == 1 ? ' · stok ${formatStock(toDouble(p['stock']), p['unit']?.toString())} ${p['unit'] ?? ''}' : ''}'
                                       '${p['consignor_id'] != null ? ' · titipan ${p['consignor_name'] ?? ''}' : ''}'),
                                   trailing: Row(
                                     mainAxisSize: MainAxisSize.min,

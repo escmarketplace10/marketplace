@@ -49,6 +49,21 @@ String formatDateTime(String? iso) {
   return d == null ? '-' : _timeFmt.format(d);
 }
 
+/// Daftar satuan standar untuk produk.
+const List<String> kUnitOptions = ['pcs', 'Kg', 'Mg', 'gram', 'liter', 'ml', 'pack', 'lusin', 'box', 'botol', 'kaleng', 'sachet', 'bungkus', 'porsi', 'cup'];
+
+/// Satuan yang menggunakan desimal (berat/volume).
+const Set<String> kDecimalUnits = {'Kg', 'Mg', 'gram', 'liter', 'ml'};
+
+/// Format angka stok sesuai satuannya — desimal untuk Kg/Mg/gram/liter/ml, bulat untuk pcs/pack/dll.
+String formatStock(num value, String? unit) {
+  if (unit != null && kDecimalUnits.contains(unit)) {
+    if (value == value.roundToDouble()) return value.toStringAsFixed(0);
+    return value.toStringAsFixed(2).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
+  }
+  return value.toStringAsFixed(0);
+}
+
 /// Helper konversi aman dari JSON (backend kadang mengirim int/double/string).
 double toDouble(dynamic v) {
   if (v == null) return 0;

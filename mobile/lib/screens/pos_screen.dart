@@ -198,7 +198,7 @@ class _ProductCard extends StatelessWidget {
                     Text(rupiah(toDouble(product['price'])),
                         style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800, fontSize: 13)),
                     if (track)
-                      Text('Stok ${stock.toStringAsFixed(0)} ${product['unit'] ?? ''}',
+                      Text('Stok ${formatStock(stock, product['unit']?.toString())} ${product['unit'] ?? ''}',
                           style: TextStyle(fontSize: 10.5, color: low ? AppColors.danger : AppColors.muted, fontWeight: FontWeight.w600)),
                   ],
                 ),
