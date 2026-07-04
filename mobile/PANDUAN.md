@@ -18,7 +18,7 @@ Aplikasi kasir Android yang terhubung ke server backend (Node + SQLite) di satu 
    Catat alamat ini. Biarkan jendela tetap terbuka.
 4. HP/tablet **harus terhubung ke WiFi yang sama** dengan PC.
 
-> PIN Admin awal: **123456**. Aplikasi mulai kosong — tambah kategori, menu, dan karyawan lain langsung di aplikasi.
+> Aplikasi hanya untuk **Kasir** & **Petugas Stok** (login PIN). **Admin** mengelola toko lewat **Website**, bukan aplikasi. PIN kasir contoh awal: **123456** — tambah/ubah karyawan & peran lewat Web Admin.
 
 ## B. Memakai Aplikasi di HP/Tablet
 
@@ -51,7 +51,7 @@ flutter build apk --debug
 ## D. Fitur
 
 - **Kasir/POS**: kategori, grid produk, keranjang, diskon, tipe order (Dine In/Take Away/Delivery), referensi meja, pilih/tambah pelanggan, pembayaran (Tunai/QRIS/Kartu/E-Wallet), **Atur Kembalian** (uang diterima + tombol pecahan cepat yang bisa diatur + kembalian otomatis), buka shift.
-- **Kelola Menu**: tambah/edit/**hapus** kategori & menu (Admin/Manager).
+- **Kelola Menu**: tambah/edit/**hapus** kategori & menu (Petugas Stok / Admin di Web).
 - **Shift**: buka/tutup shift + rekap kas & selisih.
 - **Dapur (KDS)**: papan 3 kolom (Baru → Dimasak → Siap), auto-refresh.
 - **Stok**: daftar, sesuaikan stok (masuk/keluar/set), filter stok menipis.

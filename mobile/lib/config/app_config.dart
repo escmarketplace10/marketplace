@@ -6,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 class AppConfig {
   static const _kEmployee = 'session_employee';
   static const _kToken = 'session_token';
-  static const _kStoreLogin = 'store_login_email';
 
   static late SharedPreferences _prefs;
 
@@ -31,7 +30,6 @@ class AppConfig {
 
   static String? get employeeJson => _prefs.getString(_kEmployee);
   static String? get token => _prefs.getString(_kToken);
-  static String? get storeToken => _prefs.getString(_kStoreLogin);
 
   static Future<void> saveSession(String employeeJson, String token) async {
     await _prefs.setString(_kEmployee, employeeJson);
@@ -41,14 +39,6 @@ class AppConfig {
   static Future<void> clearSession() async {
     await _prefs.remove(_kEmployee);
     await _prefs.remove(_kToken);
-  }
-
-  static Future<void> saveStoreToken(String tok) async {
-    await _prefs.setString(_kStoreLogin, tok);
-  }
-
-  static Future<void> clearStoreToken() async {
-    await _prefs.remove(_kStoreLogin);
   }
 
   // ---- Pecahan uang cepat (untuk Atur Kembalian) ----

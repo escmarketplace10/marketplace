@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
 export default function Login() {
-  const [email, setEmail] = useState('admin@kantinku.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -29,10 +29,10 @@ export default function Login() {
     <div className="login-container">
       <div className="login-box">
         <div className="login-logo">
-          <div className="login-logo-icon">🏪</div>
+          <div className="login-logo-icon">☕</div>
         </div>
-        <h1>ESC Marketplace</h1>
-        <p className="login-subtitle">Masuk ke panel administrasi Anda</p>
+        <h1>Kantinku</h1>
+        <p className="login-subtitle">Panel Admin — kelola toko Anda</p>
 
         {error && <div className="login-error">⚠️ {error}</div>}
 
@@ -61,6 +61,10 @@ export default function Login() {
             {loading ? '⏳ Memverifikasi...' : '🔐 Masuk ke Dashboard'}
           </button>
         </form>
+
+        <div className="login-note">
+          Khusus <strong>Admin</strong>. Kasir &amp; Petugas Stok login lewat aplikasi HP.
+        </div>
       </div>
     </div>
   );

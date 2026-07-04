@@ -1,8 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../database';
 import { v4 as uuid } from 'uuid';
-import path from 'path';
-import fs from 'fs';
+import { requireStockAccess } from '../middleware/roleGuard';
 
 const router = Router();
 
@@ -112,8 +111,8 @@ router.get('/:id', async (req: Request, res: Response) => {
   });
 });
 
-// POST /api/products - Create product
-router.post('/', async (req: Request, res: Response) => {
+// POST /api/products - Create product (bukan untuk kasir)
+router.post('/', requireStockAccess, async (req: Request, res: Response) => {
   const db = getDb();
   const { category_id, name, sku, barcode, price, cost_price, unit, stock, min_stock, is_track_stock, consignor_id, commission_percent } = req.body;
 
@@ -135,8 +134,8 @@ router.post('/', async (req: Request, res: Response) => {
   return res.json({ success: true, id });
 });
 
-// PUT /api/products/:id - Update product
-router.put('/:id', async (req: Request, res: Response) => {
+// PUT /api/products/:id - Update product (bukan untuk kasir)
+router.put('/:id', requireStockAccess, async (req: Request, res: Response) => {
   const db = getDb();
   const { name, price, cost_price, stock, min_stock, is_active, barcode, category_id, unit, consignor_id, commission_percent } = req.body;
 
@@ -168,8 +167,8 @@ router.put('/:id', async (req: Request, res: Response) => {
   return res.json({ success: true });
 });
 
-// DELETE /api/products/:id - Soft delete
-router.delete('/:id', async (req: Request, res: Response) => {
+// DELETE /api/products/:id - Soft delete (bukan untuk kasir)
+router.delete('/:id', requireStockAccess, async (req: Request, res: Response) => {
   const db = getDb();
   await db.run('UPDATE products SET is_active = 0, updated_at = now() WHERE id = ?', [req.params.id]);
   return res.json({ success: true });

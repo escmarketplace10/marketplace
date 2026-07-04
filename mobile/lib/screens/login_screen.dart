@@ -68,7 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 14),
                 const Text('Kantinku', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
-                const Text('Masukkan PIN Karyawan',
+                const Text('Masukkan PIN Kasir / Petugas Stok',
                     style: TextStyle(color: AppColors.muted, fontSize: 14)),
                 const SizedBox(height: 24),
                 // Indikator PIN
@@ -108,13 +108,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                TextButton.icon(
-                  onPressed: () => context.read<Session>().logoutStore(),
-                  icon: const Icon(Icons.logout, size: 18, color: AppColors.danger),
-                  label: const Text('Logout Toko (Ganti Perangkat)', style: TextStyle(color: AppColors.danger)),
-                ),
-                const SizedBox(height: 4),
-                const Text('PIN Admin pertama kali: 123456',
+                const Text('Admin mengelola toko lewat Website.\nPIN kasir contoh pertama kali: 123456',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: AppColors.muted, fontSize: 11)),
               ],

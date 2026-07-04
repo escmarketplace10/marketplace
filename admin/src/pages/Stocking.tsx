@@ -38,7 +38,8 @@ export default function Stocking() {
         product_id: modal.product.id,
         quantity: Math.abs(modal.qty),
         type: modal.type === 'in' ? 'in' : 'out',
-        notes: modal.notes || 'Adjustment manual admin'
+        reason: modal.type === 'out' ? modal.reason : undefined,
+        notes: modal.notes || undefined
       }, { headers });
       setModal(null);
       load();
@@ -124,7 +125,7 @@ export default function Stocking() {
                     <td style={{ textAlign: 'center' }}>
                       <button
                         className="btn btn-secondary btn-sm"
-                        onClick={() => setModal({ product: p, qty: 1, type: 'in', notes: '' })}
+                        onClick={() => setModal({ product: p, qty: 1, type: 'in', notes: '', reason: 'koreksi' })}
                       >
                         <ArrowUpDown size={13} /> Sesuaikan
                       </button>
@@ -172,6 +173,22 @@ export default function Stocking() {
                   onChange={e => setModal((m: any) => ({ ...m, qty: Number(e.target.value) }))}
                 />
               </div>
+              {modal.type === 'out' && (
+                <div className="form-group">
+                  <label className="form-label">Alasan Barang Keluar</label>
+                  <select
+                    className="form-select"
+                    value={modal.reason}
+                    onChange={e => setModal((m: any) => ({ ...m, reason: e.target.value }))}
+                  >
+                    <option value="rusak">Barang Rusak</option>
+                    <option value="hilang">Barang Hilang</option>
+                    <option value="kadaluarsa">Kadaluarsa</option>
+                    <option value="koreksi">Koreksi Stok</option>
+                    <option value="lainnya">Lainnya</option>
+                  </select>
+                </div>
+              )}
               <div className="form-group">
                 <label className="form-label">Catatan (opsional)</label>
                 <input

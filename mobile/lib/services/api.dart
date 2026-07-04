@@ -74,9 +74,7 @@ class Api {
   }
 
   // ---- Auth ----
-  static Future<Map<String, dynamic>> storeLogin(String email, String password) async =>
-      Map<String, dynamic>.from(await _send('POST', '/admin/login', {'email': email, 'password': password}));
-
+  // Login hanya PIN karyawan (kasir / petugas stok). Admin login lewat Website.
   static Future<Map<String, dynamic>> login(String pin) async =>
       Map<String, dynamic>.from(await _send('POST', '/auth/login', {'pin': pin}));
 

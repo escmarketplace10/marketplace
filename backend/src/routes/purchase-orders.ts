@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../database';
 import { v4 as uuid } from 'uuid';
+import { requireStockAccess } from '../middleware/roleGuard';
+import { getActorLabel } from '../middleware/actor';
 
 const router = Router();
 
@@ -51,8 +53,8 @@ router.get('/:id', async (req: Request, res: Response) => {
   return res.json({ ...po, items });
 });
 
-// POST /api/purchase-orders
-router.post('/', async (req: Request, res: Response) => {
+// POST /api/purchase-orders (bukan untuk kasir)
+router.post('/', requireStockAccess, async (req: Request, res: Response) => {
   const db = getDb();
   const { supplier_id, items, notes } = req.body;
   if (!supplier_id || !items?.length) return res.status(400).json({ error: 'supplier_id and items required' });
@@ -85,13 +87,14 @@ router.post('/', async (req: Request, res: Response) => {
   return res.json({ success: true, id, po_number: poNumber, total_amount: totalAmount });
 });
 
-// POST /api/purchase-orders/:id/receive - Receive PO (add stock)
-router.post('/:id/receive', async (req: Request, res: Response) => {
+// POST /api/purchase-orders/:id/receive - Receive PO (add stock, bukan untuk kasir)
+router.post('/:id/receive', requireStockAccess, async (req: Request, res: Response) => {
   const db = getDb();
   const po = await db.get('SELECT * FROM purchase_orders WHERE id = ?', [req.params.id]) as any;
   if (!po) return res.status(404).json({ error: 'PO not found' });
   if (po.status === 'received') return res.status(400).json({ error: 'PO already received' });
 
+  const actor = getActorLabel(req);
   await db.transaction(async (tx) => {
     await tx.run("UPDATE purchase_orders SET status = 'received', received_at = now() WHERE id = ?", [req.params.id]);
 
@@ -100,16 +103,16 @@ router.post('/:id/receive', async (req: Request, res: Response) => {
       const qty = item.quantity;
       await tx.run('UPDATE products SET stock = stock + ?, updated_at = now() WHERE id = ?', [qty, item.product_id]);
       await tx.run('UPDATE purchase_order_items SET received_quantity = ? WHERE id = ?', [qty, item.id]);
-      await tx.run(`INSERT INTO inventory_movements (id, product_id, type, quantity, reference_type, reference_id, notes)
-        VALUES (?, ?, 'in', ?, 'purchase', ?, ?)`, [uuid(), item.product_id, qty, req.params.id, `PO Received: ${po.po_number}`]);
+      await tx.run(`INSERT INTO inventory_movements (id, product_id, type, quantity, reference_type, reference_id, notes, created_by)
+        VALUES (?, ?, 'in', ?, 'purchase', ?, ?, ?)`, [uuid(), item.product_id, qty, req.params.id, `PO Diterima: ${po.po_number}`, actor]);
     }
   });
 
   return res.json({ success: true });
 });
 
-// DELETE /api/purchase-orders/:id
-router.delete('/:id', async (req: Request, res: Response) => {
+// DELETE /api/purchase-orders/:id (bukan untuk kasir)
+router.delete('/:id', requireStockAccess, async (req: Request, res: Response) => {
   const db = getDb();
   const po = await db.get('SELECT * FROM purchase_orders WHERE id = ?', [req.params.id]) as any;
   if (!po) return res.status(404).json({ error: 'PO not found' });

@@ -14,7 +14,7 @@ class _EmployeesScreenState extends State<EmployeesScreen> {
   List<dynamic> _employees = [];
   bool _loading = true;
 
-  static const _roles = ['cashier', 'manager', 'admin'];
+  static const _roles = ['cashier', 'stocking'];
 
   @override
   void initState() {

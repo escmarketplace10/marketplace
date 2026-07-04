@@ -70,7 +70,7 @@ export default function Dashboard() {
 
       <div className="stats-grid">
         <StatCard
-          icon={<TrendingUp size={22} color="#6366F1" />}
+          icon={<TrendingUp size={22} color="#F97316" />}
           label="Pendapatan Hari Ini"
           value={fmt(stats?.today_revenue ?? 0)}
           color="indigo"

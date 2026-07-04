@@ -38,7 +38,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     try {
       final trx = await Api.transaction(id);
       if (!mounted) return;
-      final canVoid = context.read<Session>().can('reports') || context.read<Session>().role == 'manager';
+      final canVoid = context.read<Session>().can('reports');
       showModalBottomSheet(
         context: context,
         isScrollControlled: true,

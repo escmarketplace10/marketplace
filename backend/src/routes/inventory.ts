@@ -1,16 +1,27 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../database';
 import { v4 as uuid } from 'uuid';
+import { requireStockAccess } from '../middleware/roleGuard';
+import { getActorLabel } from '../middleware/actor';
 
 const router = Router();
 
-// GET /api/inventory/movements - Stock movement log
+// Alasan barang keluar manual — dipetakan ke label rapi di catatan (audit trail).
+const STOCK_OUT_REASONS: Record<string, string> = {
+  rusak: 'Barang Rusak',
+  hilang: 'Barang Hilang',
+  kadaluarsa: 'Kadaluarsa',
+  koreksi: 'Koreksi Stok',
+  lainnya: 'Lainnya',
+};
+
+// GET /api/inventory/movements - Stock movement log (barang masuk/keluar termonitor)
 router.get('/movements', async (req: Request, res: Response) => {
   const db = getDb();
-  const { product_id, type, start_date, end_date, limit } = req.query;
+  const { product_id, type, reference_type, start_date, end_date, limit, offset } = req.query;
 
   let query = `
-    SELECT im.*, p.name as product_name, p.sku
+    SELECT im.*, p.name as product_name, p.sku, p.unit
     FROM inventory_movements im
     LEFT JOIN products p ON im.product_id = p.id
     WHERE 1=1
@@ -19,21 +30,23 @@ router.get('/movements', async (req: Request, res: Response) => {
 
   if (product_id) { query += ' AND im.product_id = ?'; params.push(product_id); }
   if (type) { query += ' AND im.type = ?'; params.push(type); }
+  if (reference_type) { query += ' AND im.reference_type = ?'; params.push(reference_type); }
   if (start_date) { query += ' AND im.created_at >= ?'; params.push(start_date); }
   if (end_date) { query += ' AND im.created_at <= ?'; params.push(end_date); }
 
   query += ' ORDER BY im.created_at DESC';
 
-  const maxLimit = limit ? Number(limit) : 100;
+  const maxLimit = limit ? Number(limit) : 200;
   query += ' LIMIT ?'; params.push(maxLimit);
+  if (offset) { query += ' OFFSET ?'; params.push(Number(offset)); }
 
   return res.json(await db.all(query, params));
 });
 
-// POST /api/inventory/adjust - Manual stock adjustment
-router.post('/adjust', async (req: Request, res: Response) => {
+// POST /api/inventory/adjust - Manual stock adjustment (bukan untuk kasir)
+router.post('/adjust', requireStockAccess, async (req: Request, res: Response) => {
   const db = getDb();
-  const { product_id, quantity, type, notes, created_by } = req.body;
+  const { product_id, quantity, type, notes, reason } = req.body;
 
   if (!product_id || !quantity || !type) {
     return res.status(400).json({ error: 'product_id, quantity, and type required' });
@@ -41,6 +54,12 @@ router.post('/adjust', async (req: Request, res: Response) => {
 
   const product = await db.get('SELECT * FROM products WHERE id = ?', [product_id]) as any;
   if (!product) return res.status(404).json({ error: 'Product not found' });
+
+  // Aktor (siapa yang melakukan) diturunkan dari token JWT, bukan dari body —
+  // supaya jejak audit tidak bisa dipalsukan klien.
+  const actor = getActorLabel(req);
+  const reasonLabel = reason && STOCK_OUT_REASONS[reason] ? `[${STOCK_OUT_REASONS[reason]}] ` : '';
+  const finalNotes = `${reasonLabel}${notes || 'Penyesuaian manual'}`;
 
   const id = uuid();
   // Harus di-await & atomic: di serverless Vercel, respons yang terkirim duluan
@@ -57,7 +76,7 @@ router.post('/adjust', async (req: Request, res: Response) => {
     await tx.run(`
       INSERT INTO inventory_movements (id, product_id, type, quantity, reference_type, notes, created_by)
       VALUES (?, ?, ?, ?, 'manual', ?, ?)
-    `, [id, product_id, type, quantity, notes || 'Manual adjustment', created_by || null]);
+    `, [id, product_id, type, quantity, finalNotes, actor]);
   });
 
   return res.json({ success: true, id });
@@ -76,13 +95,14 @@ router.get('/low-stock', async (_req: Request, res: Response) => {
   return res.json(products);
 });
 
-// POST /api/inventory/stock-opname - Quick stock take
-router.post('/stock-opname', async (req: Request, res: Response) => {
+// POST /api/inventory/stock-opname - Quick stock take (bukan untuk kasir)
+router.post('/stock-opname', requireStockAccess, async (req: Request, res: Response) => {
   const db = getDb();
   const { items } = req.body; // [{product_id, actual_stock}]
 
   if (!items?.length) return res.status(400).json({ error: 'Items required' });
 
+  const actor = getActorLabel(req);
   const results: any[] = [];
   await db.transaction(async (tx) => {
     for (const item of items) {
@@ -98,7 +118,7 @@ router.post('/stock-opname', async (req: Request, res: Response) => {
         await tx.run(`
           INSERT INTO inventory_movements (id, product_id, type, quantity, reference_type, notes, created_by)
           VALUES (?, ?, ?, ?, 'opname', ?, ?)
-        `, [uuid(), item.product_id, type, absDiff, `Stock opname: system ${product.stock} -> actual ${item.actual_stock}`, item.created_by || null]);
+        `, [uuid(), item.product_id, type, absDiff, `Stock opname: system ${product.stock} -> actual ${item.actual_stock}`, actor]);
 
         results.push({ product_id: item.product_id, name: product.name, old_stock: product.stock, new_stock: item.actual_stock, diff });
       }

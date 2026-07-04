@@ -112,7 +112,7 @@ export default function LabaRugi() {
           {/* Summary Cards */}
           <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', marginBottom: 24 }}>
             {[
-              { label: 'Total Penjualan', val: data?.revenue ?? 0, icon: <DollarSign size={22} color="#6366F1" />, color: 'indigo' },
+              { label: 'Total Penjualan', val: data?.revenue ?? 0, icon: <DollarSign size={22} color="#F97316" />, color: 'indigo' },
               { label: 'Harga Pokok (HPP)', val: data?.cogs ?? 0, icon: <TrendingDown size={22} color="#F59E0B" />, color: 'amber' },
               { label: 'Laba Kotor', val: data?.gross_profit ?? 0, icon: <TrendingUp size={22} color="#10B981" />, color: 'green' },
               { label: 'Biaya Operasional', val: data?.expenses ?? 0, icon: <TrendingDown size={22} color="#EF4444" />, color: 'rose' },

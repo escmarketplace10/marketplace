@@ -22,9 +22,11 @@ async function seed() {
     await db.run(`DELETE FROM ${table}`);
   }
 
-  // Hanya akun Admin (PIN default 123456) — silakan ubah/ tambah karyawan di aplikasi.
+  // Contoh 1 karyawan kasir (PIN 123456) supaya aplikasi bisa langsung dicoba.
+  // Admin TIDAK dibuat sebagai karyawan — admin login lewat Website (admin_users).
+  // Tambah/ubah kasir & petugas stok lewat menu Karyawan di Web Admin.
   await db.run('INSERT INTO employees (id, name, pin, role) VALUES (?, ?, ?, ?)', [
-    uuid(), 'Admin', sha256('123456'), 'admin'
+    uuid(), 'Kasir Contoh', sha256('123456'), 'cashier'
   ]);
 
   // Buat admin web default
@@ -36,6 +38,7 @@ async function seed() {
   );
 
   console.log('✅ Database siap. Login Admin Web: admin@kantinku.com / password123');
+  console.log('   Kasir contoh untuk aplikasi: PIN 123456 (peran Kasir).');
   console.log('   (Tambah kategori, menu, dan karyawan langsung di Web Admin.)');
 
   await closeDb();

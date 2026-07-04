@@ -19,6 +19,12 @@ router.post('/login', async (req: Request, res: Response) => {
     return res.status(401).json({ error: 'PIN tidak valid' });
   }
 
+  // Admin/owner hanya boleh login lewat Website, bukan aplikasi kasir.
+  const ADMIN_ONLY_ROLES = new Set(['admin', 'owner', 'super_admin']);
+  if (ADMIN_ONLY_ROLES.has(String(employee.role || ''))) {
+    return res.status(403).json({ error: 'Akun admin hanya bisa login lewat Website, bukan aplikasi.' });
+  }
+
   // JWT karyawan — diverifikasi middleware requireAuth di semua endpoint
   const token = jwt.sign(
     { kind: 'employee', id: employee.id, name: employee.name, role: employee.role },

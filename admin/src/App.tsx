@@ -3,8 +3,10 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import Transactions from './pages/Transactions';
 import LabaRugi from './pages/LabaRugi';
 import Stocking from './pages/Stocking';
+import StockLedger from './pages/StockLedger';
 import Suppliers from './pages/Suppliers';
 import Purchases from './pages/Purchases';
 import Expenses from './pages/Expenses';
@@ -33,8 +35,10 @@ function App() {
         }>
           <Route index element={<Navigate to="/dashboard" />} />
           <Route path="dashboard" element={<Dashboard />} />
+          <Route path="transactions" element={<Transactions />} />
           <Route path="laba-rugi" element={<LabaRugi />} />
           <Route path="stocking" element={<Stocking />} />
+          <Route path="stock-ledger" element={<StockLedger />} />
           <Route path="suppliers" element={<Suppliers />} />
           <Route path="purchases" element={<Purchases />} />
           <Route path="expenses" element={<Expenses />} />

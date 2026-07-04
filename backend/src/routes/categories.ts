@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../database';
 import { v4 as uuid } from 'uuid';
+import { requireStockAccess } from '../middleware/roleGuard';
 
 const router = Router();
 
@@ -17,8 +18,8 @@ router.get('/', async (_req: Request, res: Response) => {
   return res.json(categories);
 });
 
-// POST /api/categories - Create category
-router.post('/', async (req: Request, res: Response) => {
+// POST /api/categories - Create category (bukan untuk kasir)
+router.post('/', requireStockAccess, async (req: Request, res: Response) => {
   const db = getDb();
   const { name, icon, sort_order } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
@@ -28,16 +29,16 @@ router.post('/', async (req: Request, res: Response) => {
   return res.json({ success: true, id });
 });
 
-// PUT /api/categories/:id
-router.put('/:id', async (req: Request, res: Response) => {
+// PUT /api/categories/:id (bukan untuk kasir)
+router.put('/:id', requireStockAccess, async (req: Request, res: Response) => {
   const db = getDb();
   const { name, icon, sort_order } = req.body;
   await db.run('UPDATE categories SET name = COALESCE(?, name), icon = COALESCE(?, icon), sort_order = COALESCE(?, sort_order), updated_at = now() WHERE id = ?', [name || null, icon || null, sort_order ?? null, req.params.id]);
   return res.json({ success: true });
 });
 
-// DELETE /api/categories/:id
-router.delete('/:id', async (req: Request, res: Response) => {
+// DELETE /api/categories/:id (bukan untuk kasir)
+router.delete('/:id', requireStockAccess, async (req: Request, res: Response) => {
   const db = getDb();
   // Check if products exist in this category
   const productCount = await db.get('SELECT COUNT(*) as count FROM products WHERE category_id = ?', [req.params.id]) as any;

@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../database';
 import { v4 as uuid } from 'uuid';
+import { requireAdminOnly } from '../middleware/roleGuard';
+import { getActorLabel } from '../middleware/actor';
 
 const router = Router();
 
@@ -13,10 +15,10 @@ function generateReceiptNumber(): string {
   return `INV-${dateStr}-${timeStr}${rand}`;
 }
 
-// GET /api/transactions
+// GET /api/transactions — daftar transaksi dengan filter lengkap utk admin
 router.get('/', async (req: Request, res: Response) => {
   const db = getDb();
-  const { start_date, end_date, status, limit, offset } = req.query;
+  const { start_date, end_date, status, payment_method, is_void, search, limit, offset } = req.query;
 
   let query = `
     SELECT t.*, e.name as employee_name, c.name as customer_name
@@ -27,14 +29,19 @@ router.get('/', async (req: Request, res: Response) => {
   `;
   const params: any[] = [];
 
-
   if (start_date) { query += ' AND t.created_at >= ?'; params.push(start_date); }
   if (end_date) { query += ' AND t.created_at <= ?'; params.push(end_date); }
   if (status) { query += ' AND t.status = ?'; params.push(status); }
+  if (payment_method) { query += ' AND t.payment_method = ?'; params.push(payment_method); }
+  if (is_void !== undefined) { query += ' AND t.is_void = ?'; params.push(Number(is_void)); }
+  if (search) {
+    query += ' AND (t.receipt_number ILIKE ? OR c.name ILIKE ? OR e.name ILIKE ?)';
+    params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+  }
 
   query += ' ORDER BY t.created_at DESC';
 
-  if (limit) { query += ' LIMIT ?'; params.push(Number(limit)); } else { query += ' LIMIT 50'; }
+  if (limit) { query += ' LIMIT ?'; params.push(Number(limit)); } else { query += ' LIMIT 100'; }
   if (offset) { query += ' OFFSET ?'; params.push(Number(offset)); }
 
   return res.json(await db.all(query, params));
@@ -166,10 +173,11 @@ router.post('/', async (req: Request, res: Response) => {
   });
 });
 
-// POST /api/transactions/:id/void - Void a transaction
-router.post('/:id/void', async (req: Request, res: Response) => {
+// POST /api/transactions/:id/void - Void a transaction (Admin lewat Website saja)
+router.post('/:id/void', requireAdminOnly, async (req: Request, res: Response) => {
   const db = getDb();
-  const { reason, void_by } = req.body;
+  const { reason } = req.body;
+  const voidBy = getActorLabel(req);
 
   const trx = await db.get('SELECT * FROM transactions WHERE id = ?', [req.params.id]) as any;
   if (!trx) return res.status(404).json({ error: 'Transaction not found' });
@@ -178,15 +186,15 @@ router.post('/:id/void', async (req: Request, res: Response) => {
 
   await db.transaction(async (tx) => {
     await tx.run(`UPDATE transactions SET is_void = 1, void_reason = ?, void_by = ?, status = 'voided', updated_at = now() WHERE id = ?`,
-      [reason || 'No reason', void_by || null, req.params.id]);
+      [reason || 'Tanpa alasan', voidBy, req.params.id]);
 
     // Restore stock
     const items = await tx.all('SELECT * FROM transaction_items WHERE transaction_id = ?', [req.params.id]) as any[];
     for (const item of items) {
       await tx.run('UPDATE products SET stock = stock + ? WHERE id = ? AND is_track_stock = 1', [item.quantity, item.product_id]);
-      await tx.run(`INSERT INTO inventory_movements (id, product_id, type, quantity, reference_type, reference_id, notes)
-        VALUES (?, ?, 'in', ?, 'void', ?, ?)`,
-        [uuid(), item.product_id, item.quantity, req.params.id, 'Restocked from void']);
+      await tx.run(`INSERT INTO inventory_movements (id, product_id, type, quantity, reference_type, reference_id, notes, created_by)
+        VALUES (?, ?, 'in', ?, 'void', ?, ?, ?)`,
+        [uuid(), item.product_id, item.quantity, req.params.id, `Dikembalikan dari void: ${reason || 'Tanpa alasan'}`, voidBy]);
     }
   });
   return res.json({ success: true });

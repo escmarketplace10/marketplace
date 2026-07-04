@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
   LayoutDashboard, TrendingUp, Package, Truck, ShoppingCart,
-  Wallet, Users, LogOut, UserCheck, KeyRound, X
+  Wallet, Users, LogOut, UserCheck, KeyRound, X, Receipt, History
 } from 'lucide-react';
 
 const navItems = [
@@ -11,6 +11,7 @@ const navItems = [
     section: 'Overview',
     links: [
       { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+      { to: '/transactions', icon: Receipt, label: 'Transaksi' },
       { to: '/laba-rugi', icon: TrendingUp, label: 'Laba Rugi' },
     ]
   },
@@ -18,6 +19,7 @@ const navItems = [
     section: 'Inventaris',
     links: [
       { to: '/stocking', icon: Package, label: 'Stok Barang' },
+      { to: '/stock-ledger', icon: History, label: 'Riwayat Stok' },
       { to: '/suppliers', icon: Truck, label: 'Supplier' },
       { to: '/purchases', icon: ShoppingCart, label: 'Pembelian' },
     ]
@@ -121,10 +123,10 @@ export default function Layout() {
       {/* SIDEBAR */}
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <div className="sidebar-brand-icon">🏪</div>
+          <div className="sidebar-brand-icon">☕</div>
           <div className="sidebar-brand-text">
-            <h2>ESC Marketplace</h2>
-            <span>Admin Dashboard</span>
+            <h2>Kantinku</h2>
+            <span>Panel Admin</span>
           </div>
         </div>
 

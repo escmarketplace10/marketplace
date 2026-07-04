@@ -71,7 +71,7 @@ export default function Employees() {
       <div className="page-header">
         <div>
           <div className="page-title">Manajemen Karyawan</div>
-          <div className="page-subtitle">Atur akun kasir, supervisor, beserta PIN login mereka</div>
+          <div className="page-subtitle">Atur akun kasir &amp; petugas stok beserta PIN login aplikasi</div>
         </div>
         <button className="btn btn-primary" onClick={openAdd}><Plus size={16} /> Tambah Karyawan</button>
       </div>
@@ -87,10 +87,10 @@ export default function Employees() {
           <div className="stat-value">{employees.filter(e => e.is_active).length}</div>
           <div className="stat-label">Karyawan Aktif</div>
         </div>
-        <div className="stat-card rose">
-          <div className="stat-card-header"><div className="stat-card-icon rose"><span style={{ fontSize: 22 }}>🔒</span></div></div>
-          <div className="stat-value">{employees.filter(e => e.role === 'supervisor' || e.role === 'admin').length}</div>
-          <div className="stat-label">Total Supervisor</div>
+        <div className="stat-card amber">
+          <div className="stat-card-header"><div className="stat-card-icon amber"><span style={{ fontSize: 22 }}>📦</span></div></div>
+          <div className="stat-value">{employees.filter(e => e.role === 'stocking').length}</div>
+          <div className="stat-label">Petugas Stok</div>
         </div>
       </div>
 
@@ -132,8 +132,8 @@ export default function Employees() {
                       </div>
                     </td>
                     <td>
-                      <span className={`badge ${e.role === 'supervisor' ? 'badge-purple' : 'badge-blue'}`}>
-                        {e.role === 'supervisor' ? '👑 Supervisor' : '🛒 Kasir'}
+                      <span className={`badge ${e.role === 'stocking' ? 'badge-orange' : 'badge-blue'}`}>
+                        {e.role === 'stocking' ? '📦 Petugas Stok' : '🛒 Kasir'}
                       </span>
                     </td>
                     <td>{e.phone || '-'}</td>
@@ -184,8 +184,8 @@ export default function Employees() {
                 <div className="form-group">
                   <label className="form-label">Peran Karyawan *</label>
                   <select className="form-select" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
-                    <option value="cashier">Kasir</option>
-                    <option value="supervisor">Supervisor</option>
+                    <option value="cashier">Kasir (transaksi &amp; pelanggan)</option>
+                    <option value="stocking">Petugas Stok (menu, stok, pembelian)</option>
                   </select>
                 </div>
                 
