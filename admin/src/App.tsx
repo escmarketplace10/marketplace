@@ -5,6 +5,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
 import LabaRugi from './pages/LabaRugi';
+import Products from './pages/Products';
 import Stocking from './pages/Stocking';
 import StockLedger from './pages/StockLedger';
 import Suppliers from './pages/Suppliers';
@@ -37,6 +38,7 @@ function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="transactions" element={<Transactions />} />
           <Route path="laba-rugi" element={<LabaRugi />} />
+          <Route path="products" element={<Products />} />
           <Route path="stocking" element={<Stocking />} />
           <Route path="stock-ledger" element={<StockLedger />} />
           <Route path="suppliers" element={<Suppliers />} />

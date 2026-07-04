@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
   LayoutDashboard, TrendingUp, Package, Truck, ShoppingCart,
-  Wallet, Users, LogOut, UserCheck, KeyRound, X, Receipt, History
+  Wallet, Users, LogOut, UserCheck, KeyRound, X, Receipt, History, UtensilsCrossed
 } from 'lucide-react';
 
 const navItems = [
@@ -18,6 +18,7 @@ const navItems = [
   {
     section: 'Inventaris',
     links: [
+      { to: '/products', icon: UtensilsCrossed, label: 'Kelola Menu' },
       { to: '/stocking', icon: Package, label: 'Stok Barang' },
       { to: '/stock-ledger', icon: History, label: 'Riwayat Stok' },
       { to: '/suppliers', icon: Truck, label: 'Supplier' },
