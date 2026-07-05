@@ -12,8 +12,6 @@ const fmtStock = (n: number, unit?: string) => {
   return new Intl.NumberFormat('id-ID').format(Math.floor(n));
 };
 
-const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n);
-
 export default function Stocking() {
   const [products, setProducts] = useState<any[]>([]);
   const [search, setSearch] = useState('');
