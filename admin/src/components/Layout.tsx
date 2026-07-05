@@ -114,6 +114,7 @@ export default function Layout() {
   const currentPage = navItems.flatMap(s => s.links).find(l => location.pathname === l.to || location.pathname.startsWith(l.to + '/'));
 
   const handleLogout = () => {
+    if (!confirm('Yakin ingin keluar dari Panel Admin?')) return;
     localStorage.removeItem('admin_token');
     localStorage.removeItem('admin_user');
     navigate('/login');
