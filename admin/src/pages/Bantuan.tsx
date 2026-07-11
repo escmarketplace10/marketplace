@@ -25,7 +25,9 @@ const SECTIONS: Section[] = [
       { term: 'No. Struk', desc: 'Nomor unik tiap penjualan. Untuk mencari/mencocokkan.' },
       { term: 'Kasir', desc: 'Karyawan yang melayani penjualan itu.' },
       { term: 'Selesai vs Void', desc: '"Selesai" = penjualan sah. "Void" = penjualan yang dibatalkan.' },
-      { term: 'Batalkan Transaksi (Void)', desc: 'Membatalkan penjualan yang salah. Stok barang otomatis dikembalikan. Isi alasan agar ada catatan. Hati-hati — ini mengubah laporan.' },
+      { term: 'Kembalian', desc: 'Uang yang dikembalikan ke pembeli (uang diterima − total).' },
+      { term: 'Uang Lebih (tidak diambil)', desc: 'Bila pembeli bayar lebih dan tidak mengambil kembaliannya (tip/donasi/pembulatan). Kasir menandai lewat tombol di layar bayar. Dicatat terpisah sebagai pemasukan, bukan kembalian. Kartu "Uang Lebih" di atas daftar menjumlahkan totalnya sesuai filter — berguna saat tutup buku.' },
+      { term: 'Batalkan Transaksi (Void)', desc: 'Membatalkan penjualan yang salah. Stok kasir otomatis dikembalikan. Isi alasan agar ada catatan. Hati-hati — ini mengubah laporan.' },
     ],
   },
   {
@@ -57,13 +59,24 @@ const SECTIONS: Section[] = [
   },
   {
     icon: '📦',
-    title: 'Stok Barang',
-    intro: 'Pantau jumlah stok dan lakukan penyesuaian manual.',
+    title: 'Stok Barang (Gudang & Kasir)',
+    intro: 'Stok dipisah dua: Stok Gudang (simpanan) dan Stok Kasir (yang dijual). Barang masuk gudang dulu, lalu "dikeluarkan" ke kasir sesuai kebutuhan. Ini memudahkan tutup buku & cocokkan stok fisik.',
     items: [
-      { term: 'Stok Saat Ini', desc: 'Sisa jumlah barang sekarang.' },
-      { term: 'Badge Tersedia / Rendah / Habis', desc: 'Warna status: cukup, menipis (≤ Stok Minimum), atau habis (0).' },
-      { term: 'Barang Masuk', desc: 'Menambah stok manual (mis. koreksi hitung / temuan barang).' },
-      { term: 'Barang Keluar', desc: 'Mengurangi stok manual dengan alasan: Rusak, Hilang, Kadaluarsa, Koreksi, atau Lainnya. Semua tercatat di Riwayat Stok.' },
+      { term: 'Stok Gudang', desc: 'Persediaan utama di gudang/simpanan. Bertambah dari Pembelian (PO) atau Barang Masuk. BELUM bisa dijual kasir sampai dikeluarkan ke kasir.' },
+      { term: 'Stok Kasir', desc: 'Jumlah yang ada di lapak kasir dan siap dijual. Kasir hanya melihat & menjual dari sini. Berkurang otomatis tiap penjualan.' },
+      { term: 'Keluarkan ke Kasir (transfer)', desc: 'Tombol untuk memindahkan sebagian stok gudang ke stok kasir. Contoh: gudang 100, keluarkan 20 → gudang 80, kasir 20. Hanya admin/petugas stok.' },
+      { term: 'Badge Tersedia / Rendah / Habis', desc: 'Status dihitung dari Stok Kasir: cukup, menipis (≤ Stok Minimum), atau habis (0).' },
+      { term: 'Sesuaikan (Barang Masuk/Keluar)', desc: 'Menyesuaikan STOK GUDANG manual. Masuk = tambah (koreksi/temuan). Keluar = kurangi dengan alasan: Rusak, Hilang, Kadaluarsa, Koreksi, Lainnya. Tercatat di Riwayat Stok.' },
+    ],
+  },
+  {
+    icon: '🧮',
+    title: 'Stok Kasir & Opname (di HP Kasir)',
+    intro: 'Kasir mengelola stok jualannya sendiri lewat aplikasi HP, tanpa bisa mengutak-atik stok gudang.',
+    items: [
+      { term: 'Jual diblokir bila stok kasir habis', desc: 'Kasir tidak bisa menjual produk yang Stok Kasir-nya 0. Muncul pesan minta petugas stok mengeluarkan dari gudang dulu. Mencegah stok minus.' },
+      { term: 'Menu "Cek Stok" (Opname Kasir)', desc: 'Kasir menghitung barang fisik di lapak, lalu input jumlah sebenarnya. Aplikasi menampilkan selisih terhadap catatan (stok app) dan menyimpannya. Untuk tutup buku & cocokkan stok tiap hari.' },
+      { term: 'Selisih', desc: 'Beda antara stok app dan stok fisik. Minus = barang kurang (mis. terselip/rusak/salah catat), plus = lebih. Semua tersimpan di Riwayat Stok sebagai Opname Kasir.' },
     ],
   },
   {
@@ -72,7 +85,7 @@ const SECTIONS: Section[] = [
     intro: 'Catatan setiap barang masuk & keluar. Untuk audit — tahu kenapa stok berubah dan siapa yang mengubah.',
     items: [
       { term: 'Masuk / Keluar / Set Manual', desc: 'Jenis pergerakan stok.' },
-      { term: 'Referensi', desc: 'Asal perubahan: Penjualan (terjual), Pembelian/PO (restok dari supplier), Stock Opname (hasil hitung ulang), atau manual.' },
+      { term: 'Referensi', desc: 'Asal perubahan: Penjualan (terjual), Pembelian/PO (restok dari supplier), Transfer (pindah gudang → kasir), Opname (hasil hitung ulang gudang / kasir), atau manual.' },
       { term: 'Oleh', desc: 'Siapa yang melakukan perubahan.' },
     ],
   },
@@ -187,7 +200,9 @@ export default function Bantuan() {
             <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
               <strong style={{ color: 'var(--primary)' }}>Tips:</strong> Isi <strong>Harga Modal</strong> dan
               nyalakan <strong>Lacak Stok</strong> pada produk agar laporan <strong>Laba Rugi</strong> dan
-              peringatan <strong>Stok Minimum</strong> berjalan akurat.
+              peringatan <strong>Stok Minimum</strong> berjalan akurat. Ingat: produk yang dilacak stoknya baru
+              bisa dijual kasir setelah stoknya <strong>dikeluarkan dari gudang ke kasir</strong> (menu Stok Barang →
+              tombol "Ke Kasir").
             </div>
           </div>
         </div>
