@@ -126,6 +126,17 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    icon: '📜',
+    title: 'Log Aktivitas (Audit)',
+    intro: 'Catatan otomatis semua perubahan penting di panel: siapa, apa, dan kapan. Berguna untuk mengecek bila ada data yang berubah tanpa sepengetahuan Anda.',
+    items: [
+      { term: 'Aksi', desc: 'Jenis perubahan: Tambah, Ubah, Hapus, Void, Terima, Login, Ganti Password.' },
+      { term: 'Data', desc: 'Bagian apa yang diubah: Produk, Stok, Karyawan, Biaya, Transaksi, dll.' },
+      { term: 'Pelaku', desc: 'Siapa yang melakukan — admin atau karyawan tertentu. Diambil dari akun login, tidak bisa dipalsukan.' },
+      { term: 'Filter & cari', desc: 'Saring per jenis data/aksi atau cari kata kunci untuk menelusuri kejadian tertentu.' },
+    ],
+  },
+  {
     icon: '🔐',
     title: 'Akun & Keamanan',
     items: [

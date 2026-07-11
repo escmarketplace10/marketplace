@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { getDb } from '../database';
 import { v4 as uuid } from 'uuid';
 import { requireStockAccess } from '../middleware/roleGuard';
+import { recordAudit } from '../lib/audit';
 
 const router = Router();
 
@@ -131,6 +132,7 @@ router.post('/', requireStockAccess, async (req: Request, res: Response) => {
     if (url) await db.run('UPDATE products SET image = ? WHERE id = ?', [url, id]);
   }
 
+  await recordAudit(req, { action: 'create', entity: 'product', entity_id: id, summary: `Menambah produk "${name}"` });
   return res.json({ success: true, id });
 });
 
@@ -164,13 +166,22 @@ router.put('/:id', requireStockAccess, async (req: Request, res: Response) => {
     if (url) await db.run('UPDATE products SET image = ? WHERE id = ?', [url, req.params.id]);
   }
 
+  await recordAudit(req, {
+    action: 'update', entity: 'product', entity_id: req.params.id,
+    summary: `Mengubah produk "${name || (existing as any).name}"`,
+  });
   return res.json({ success: true });
 });
 
 // DELETE /api/products/:id - Soft delete (bukan untuk kasir)
 router.delete('/:id', requireStockAccess, async (req: Request, res: Response) => {
   const db = getDb();
+  const existing = await db.get('SELECT name FROM products WHERE id = ?', [req.params.id]) as any;
   await db.run('UPDATE products SET is_active = 0, updated_at = now() WHERE id = ?', [req.params.id]);
+  await recordAudit(req, {
+    action: 'delete', entity: 'product', entity_id: req.params.id,
+    summary: `Menghapus produk "${existing?.name ?? req.params.id}"`,
+  });
   return res.json({ success: true });
 });
 

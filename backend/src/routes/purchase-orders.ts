@@ -3,6 +3,7 @@ import { getDb } from '../database';
 import { v4 as uuid } from 'uuid';
 import { requireStockAccess } from '../middleware/roleGuard';
 import { getActorLabel } from '../middleware/actor';
+import { recordAudit } from '../lib/audit';
 
 const router = Router();
 
@@ -84,6 +85,7 @@ router.post('/', requireStockAccess, async (req: Request, res: Response) => {
     }
   });
 
+  await recordAudit(req, { action: 'create', entity: 'purchase_order', entity_id: id, summary: `Membuat pembelian ${poNumber} (Rp${Number(totalAmount).toLocaleString('id-ID')})` });
   return res.json({ success: true, id, po_number: poNumber, total_amount: totalAmount });
 });
 
@@ -108,6 +110,7 @@ router.post('/:id/receive', requireStockAccess, async (req: Request, res: Respon
     }
   });
 
+  await recordAudit(req, { action: 'receive', entity: 'purchase_order', entity_id: req.params.id, summary: `Menerima barang pembelian ${po.po_number} (stok bertambah)` });
   return res.json({ success: true });
 });
 
@@ -121,6 +124,7 @@ router.delete('/:id', requireStockAccess, async (req: Request, res: Response) =>
     await tx.run('DELETE FROM purchase_order_items WHERE po_id = ?', [req.params.id]);
     await tx.run('DELETE FROM purchase_orders WHERE id = ?', [req.params.id]);
   });
+  await recordAudit(req, { action: 'delete', entity: 'purchase_order', entity_id: req.params.id, summary: `Menghapus pembelian ${po.po_number}` });
   return res.json({ success: true });
 });
 

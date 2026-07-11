@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../database';
 import { v4 as uuid } from 'uuid';
+import { recordAudit } from '../lib/audit';
 
 const router = Router();
 
@@ -27,6 +28,7 @@ router.post('/', async (req: Request, res: Response) => {
   if (!name) return res.status(400).json({ error: 'Name required' });
   const id = uuid();
   await db.run('INSERT INTO suppliers (id, name, contact_person, phone, email, address) VALUES (?, ?, ?, ?, ?, ?)', [id, name, contact_person || null, phone || null, email || null, address || null]);
+  await recordAudit(req, { action: 'create', entity: 'supplier', entity_id: id, summary: `Menambah supplier "${name}"` });
   return res.json({ success: true, id });
 });
 
@@ -38,12 +40,15 @@ router.put('/:id', async (req: Request, res: Response) => {
     phone = COALESCE(?, phone), email = COALESCE(?, email), address = COALESCE(?, address),
     is_active = COALESCE(?, is_active), updated_at = now() WHERE id = ?
   `, [name || null, contact_person || null, phone || null, email || null, address || null, is_active ?? null, req.params.id]);
+  await recordAudit(req, { action: 'update', entity: 'supplier', entity_id: req.params.id, summary: `Mengubah supplier "${name ?? req.params.id}"` });
   return res.json({ success: true });
 });
 
 router.delete('/:id', async (req: Request, res: Response) => {
   const db = getDb();
+  const existing = await db.get('SELECT name FROM suppliers WHERE id = ?', [req.params.id]) as any;
   await db.run('UPDATE suppliers SET is_active = 0 WHERE id = ?', [req.params.id]);
+  await recordAudit(req, { action: 'delete', entity: 'supplier', entity_id: req.params.id, summary: `Menghapus supplier "${existing?.name ?? req.params.id}"` });
   return res.json({ success: true });
 });
 

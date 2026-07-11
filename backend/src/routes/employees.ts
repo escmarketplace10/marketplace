@@ -3,6 +3,7 @@ import { getDb } from '../database';
 import { v4 as uuid } from 'uuid';
 import sha256 from 'sha256';
 import { requireAdminOnly } from '../middleware/roleGuard';
+import { recordAudit } from '../lib/audit';
 
 const router = Router();
 
@@ -36,6 +37,7 @@ router.post('/', requireAdminOnly, async (req: Request, res: Response) => {
   const id = uuid();
   const hashedPin = sha256(pin);
   await db.run('INSERT INTO employees (id, name, pin, role, phone, commission_rate) VALUES (?, ?, ?, ?, ?, ?)', [id, name, hashedPin, role || 'cashier', phone || null, commission_rate || 0]);
+  await recordAudit(req, { action: 'create', entity: 'employee', entity_id: id, summary: `Menambah karyawan "${name}" (${role || 'cashier'})` });
   return res.json({ success: true, id });
 });
 
@@ -58,13 +60,19 @@ router.put('/:id', requireAdminOnly, async (req: Request, res: Response) => {
       updated_at = now()
     WHERE id = ?
   `, [name || null, hashedPin, role || null, phone || null, commission_rate ?? null, is_active ?? null, req.params.id]);
+  await recordAudit(req, {
+    action: 'update', entity: 'employee', entity_id: req.params.id,
+    summary: `Mengubah karyawan "${name ?? emp.name}"${pin ? ' (PIN diganti)' : ''}`,
+  });
   return res.json({ success: true });
 });
 
 // DELETE /api/employees/:id
 router.delete('/:id', requireAdminOnly, async (req: Request, res: Response) => {
   const db = getDb();
+  const existing = await db.get('SELECT name FROM employees WHERE id = ?', [req.params.id]) as any;
   await db.run('UPDATE employees SET is_active = 0, updated_at = now() WHERE id = ?', [req.params.id]);
+  await recordAudit(req, { action: 'delete', entity: 'employee', entity_id: req.params.id, summary: `Menonaktifkan karyawan "${existing?.name ?? req.params.id}"` });
   return res.json({ success: true });
 });
 

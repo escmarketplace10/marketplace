@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../database';
 import { v4 as uuid } from 'uuid';
+import { recordAudit } from '../lib/audit';
 
 const router = Router();
 
@@ -85,6 +86,7 @@ router.post('/', async (req: Request, res: Response) => {
 
   const id = uuid();
   await db.run('INSERT INTO consignors (id, name, phone, notes) VALUES (?, ?, ?, ?)', [id, name, phone || null, notes || null]);
+  await recordAudit(req, { action: 'create', entity: 'consignor', entity_id: id, summary: `Menambah penitip "${name}"` });
   return res.json({ success: true, id });
 });
 
@@ -101,6 +103,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       updated_at = now()
     WHERE id = ?
   `, [name || null, phone || null, notes || null, is_active ?? null, req.params.id]);
+  await recordAudit(req, { action: 'update', entity: 'consignor', entity_id: req.params.id, summary: `Mengubah penitip "${name ?? req.params.id}"` });
   return res.json({ success: true });
 });
 
@@ -111,7 +114,9 @@ router.delete('/:id', async (req: Request, res: Response) => {
   if (productCount.count > 0) {
     return res.status(400).json({ error: 'Tidak bisa hapus penitip yang masih punya produk titipan.' });
   }
+  const existing = await db.get('SELECT name FROM consignors WHERE id = ?', [req.params.id]) as any;
   await db.run('DELETE FROM consignors WHERE id = ?', [req.params.id]);
+  await recordAudit(req, { action: 'delete', entity: 'consignor', entity_id: req.params.id, summary: `Menghapus penitip "${existing?.name ?? req.params.id}"` });
   return res.json({ success: true });
 });
 

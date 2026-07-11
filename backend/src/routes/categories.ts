@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { getDb } from '../database';
 import { v4 as uuid } from 'uuid';
 import { requireStockAccess } from '../middleware/roleGuard';
+import { recordAudit } from '../lib/audit';
 
 const router = Router();
 
@@ -26,6 +27,7 @@ router.post('/', requireStockAccess, async (req: Request, res: Response) => {
 
   const id = uuid();
   await db.run('INSERT INTO categories (id, name, icon, sort_order) VALUES (?, ?, ?, ?)', [id, name, icon || '📦', sort_order || 0]);
+  await recordAudit(req, { action: 'create', entity: 'category', entity_id: id, summary: `Menambah kategori "${name}"` });
   return res.json({ success: true, id });
 });
 
@@ -34,6 +36,7 @@ router.put('/:id', requireStockAccess, async (req: Request, res: Response) => {
   const db = getDb();
   const { name, icon, sort_order } = req.body;
   await db.run('UPDATE categories SET name = COALESCE(?, name), icon = COALESCE(?, icon), sort_order = COALESCE(?, sort_order), updated_at = now() WHERE id = ?', [name || null, icon || null, sort_order ?? null, req.params.id]);
+  await recordAudit(req, { action: 'update', entity: 'category', entity_id: req.params.id, summary: `Mengubah kategori "${name ?? req.params.id}"` });
   return res.json({ success: true });
 });
 
@@ -45,7 +48,9 @@ router.delete('/:id', requireStockAccess, async (req: Request, res: Response) =>
   if (productCount.count > 0) {
     return res.status(400).json({ error: 'Cannot delete category with existing products. Move products first.' });
   }
+  const existing = await db.get('SELECT name FROM categories WHERE id = ?', [req.params.id]) as any;
   await db.run('DELETE FROM categories WHERE id = ?', [req.params.id]);
+  await recordAudit(req, { action: 'delete', entity: 'category', entity_id: req.params.id, summary: `Menghapus kategori "${existing?.name ?? req.params.id}"` });
   return res.json({ success: true });
 });
 

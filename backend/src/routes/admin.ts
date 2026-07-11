@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { getDb } from '../database';
 import { JWT_SECRET } from '../middleware/secret';
 import { loginRateLimit } from '../middleware/rateLimit';
+import { recordAudit } from '../lib/audit';
 
 const router = Router();
 
@@ -33,6 +34,13 @@ router.post('/login', loginRateLimit(), async (req: Request, res: Response) => {
       JWT_SECRET,
       { expiresIn: '7d' }
     );
+
+    await recordAudit(req, {
+      action: 'login', entity: 'admin', entity_id: admin.id,
+      summary: `Admin "${admin.name || admin.email}" login`,
+      actorKind: 'admin', actorId: admin.id,
+      actorLabel: `Admin: ${admin.name || admin.email}`,
+    });
 
     res.json({
       token,
@@ -73,7 +81,39 @@ router.post('/change-password', requireAdminAuth, async (req: Request, res: Resp
 
   const hash = await bcrypt.hash(new_password, 10);
   await db.run('UPDATE admin_users SET password_hash = ?, updated_at = now() WHERE id = ?', [hash, admin.id]);
+  await recordAudit(req, {
+    action: 'password_change', entity: 'admin', entity_id: admin.id,
+    summary: `Admin "${admin.name || admin.email}" mengganti password`,
+    actorKind: 'admin', actorId: admin.id,
+    actorLabel: `Admin: ${admin.name || admin.email}`,
+  });
   return res.json({ success: true });
+});
+
+// GET /api/admin/audit-logs — riwayat aktivitas (hanya admin web)
+router.get('/audit-logs', requireAdminAuth, async (req: Request, res: Response) => {
+  const user = (req as any).adminUser;
+  if (user?.kind !== 'admin') {
+    return res.status(403).json({ error: 'Hanya admin yang boleh melihat audit log.' });
+  }
+
+  const db = getDb();
+  const { entity, action, search, start_date, end_date, limit, offset } = req.query;
+
+  let query = 'SELECT * FROM audit_logs WHERE 1=1';
+  const params: any[] = [];
+  if (entity) { query += ' AND entity = ?'; params.push(entity); }
+  if (action) { query += ' AND action = ?'; params.push(action); }
+  if (search) { query += ' AND (summary ILIKE ? OR actor_label ILIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
+  if (start_date) { query += ' AND created_at >= ?'; params.push(start_date); }
+  if (end_date) { query += ' AND created_at <= ?'; params.push(end_date); }
+
+  query += ' ORDER BY created_at DESC';
+  const maxLimit = Math.min(limit ? Number(limit) : 200, 500);
+  query += ' LIMIT ?'; params.push(maxLimit);
+  if (offset) { query += ' OFFSET ?'; params.push(Number(offset)); }
+
+  return res.json(await db.all(query, params));
 });
 
 export default router;

@@ -3,6 +3,7 @@ import { getDb } from '../database';
 import { v4 as uuid } from 'uuid';
 import { requireAdminOnly } from '../middleware/roleGuard';
 import { getActorLabel } from '../middleware/actor';
+import { recordAudit } from '../lib/audit';
 
 const router = Router();
 
@@ -196,6 +197,10 @@ router.post('/:id/void', requireAdminOnly, async (req: Request, res: Response) =
         VALUES (?, ?, 'in', ?, 'void', ?, ?, ?)`,
         [uuid(), item.product_id, item.quantity, req.params.id, `Dikembalikan dari void: ${reason || 'Tanpa alasan'}`, voidBy]);
     }
+  });
+  await recordAudit(req, {
+    action: 'void', entity: 'transaction', entity_id: req.params.id,
+    summary: `Membatalkan (void) transaksi ${trx.receipt_number || req.params.id}. Alasan: ${reason || 'Tanpa alasan'}`,
   });
   return res.json({ success: true });
 });

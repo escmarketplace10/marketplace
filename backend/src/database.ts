@@ -309,6 +309,22 @@ export async function initializeSchema() {
       status TEXT DEFAULT 'pending',
       created_at TIMESTAMP DEFAULT now()
     );
+
+    -- Audit log: catat siapa mengubah apa & kapan (aksi admin/petugas di panel).
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id TEXT PRIMARY KEY,
+      created_at TIMESTAMP DEFAULT now(),
+      actor_kind TEXT,          -- admin / employee / system
+      actor_id TEXT,
+      actor_label TEXT,         -- label terbaca manusia (dari JWT, bukan body)
+      action TEXT NOT NULL,     -- create / update / delete / void / login / password_change
+      entity TEXT NOT NULL,     -- product / supplier / employee / expense / transaction / ...
+      entity_id TEXT,
+      summary TEXT,             -- ringkasan terbaca: "Menambah produk Kopi Susu"
+      meta JSONB
+    );
+    CREATE INDEX IF NOT EXISTS audit_logs_created_idx ON audit_logs (created_at DESC);
+    CREATE INDEX IF NOT EXISTS audit_logs_entity_idx ON audit_logs (entity);
   `);
 
   // Ensure default admin exists

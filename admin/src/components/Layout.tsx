@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
   LayoutDashboard, TrendingUp, Package, Truck, ShoppingCart,
-  Wallet, Users, LogOut, UserCheck, KeyRound, X, Receipt, History, UtensilsCrossed, Menu, HelpCircle
+  Wallet, Users, LogOut, UserCheck, KeyRound, X, Receipt, History, UtensilsCrossed, Menu, HelpCircle, ScrollText
 } from 'lucide-react';
 import { toast, confirmDialog, errText } from '../ui/feedback';
 
@@ -37,6 +37,7 @@ const navItems = [
     section: 'Sistem',
     links: [
       { to: '/employees', icon: UserCheck, label: 'Karyawan (Kasir)' },
+      { to: '/audit-log', icon: ScrollText, label: 'Log Aktivitas' },
       { to: '/bantuan', icon: HelpCircle, label: 'Panduan / Bantuan' },
     ]
   },
