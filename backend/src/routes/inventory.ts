@@ -3,6 +3,7 @@ import { getDb } from '../database';
 import { v4 as uuid } from 'uuid';
 import { requireStockAccess } from '../middleware/roleGuard';
 import { getActorLabel } from '../middleware/actor';
+import { requirePerm } from '../middleware/permissions';
 
 const router = Router();
 
@@ -16,7 +17,7 @@ const STOCK_OUT_REASONS: Record<string, string> = {
 };
 
 // GET /api/inventory/movements - Stock movement log (barang masuk/keluar termonitor)
-router.get('/movements', async (req: Request, res: Response) => {
+router.get('/movements', requirePerm('stock-ledger'), async (req: Request, res: Response) => {
   const db = getDb();
   const { product_id, type, reference_type, start_date, end_date, limit, offset } = req.query;
 
@@ -44,7 +45,7 @@ router.get('/movements', async (req: Request, res: Response) => {
 });
 
 // POST /api/inventory/adjust - Manual stock adjustment (bukan untuk kasir)
-router.post('/adjust', requireStockAccess, async (req: Request, res: Response) => {
+router.post('/adjust', requireStockAccess, requirePerm('stocking'), async (req: Request, res: Response) => {
   const db = getDb();
   const { product_id, quantity, type, notes, reason } = req.body;
 
@@ -96,7 +97,7 @@ router.get('/low-stock', async (_req: Request, res: Response) => {
 });
 
 // POST /api/inventory/stock-opname - Quick stock take (bukan untuk kasir)
-router.post('/stock-opname', requireStockAccess, async (req: Request, res: Response) => {
+router.post('/stock-opname', requireStockAccess, requirePerm('stocking'), async (req: Request, res: Response) => {
   const db = getDb();
   const { items } = req.body; // [{product_id, actual_stock}]
 

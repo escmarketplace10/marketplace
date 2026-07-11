@@ -7,6 +7,7 @@ import fs from 'fs';
 import { getDb, closeDb, initializeSchema } from './database';
 import { requireAuth } from './middleware/requireAuth';
 import { requireAdminOnly } from './middleware/roleGuard';
+import { requirePerm, requireSuperAdmin } from './middleware/permissions';
 
 import authRoutes from './routes/auth';
 import productRoutes from './routes/products';
@@ -69,19 +70,25 @@ app.use(async (_req, res, next) => {
 app.use(requireAuth);
 
 // Routes
+// Catatan hak akses: requirePerm hanya membatasi sub-admin (token admin
+// is_super=false). Super admin & token karyawan diteruskan; guard peran lain
+// (requireStockAccess/requireAdminOnly) tetap berlaku. readOpen=true membolehkan
+// GET data referensi (dropdown) agar form halaman lain tidak rusak.
 app.use('/api/auth', authRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/categories', categoryRoutes);
+app.use('/api/products', requirePerm('products', { readOpen: true }), productRoutes);
+app.use('/api/categories', requirePerm('products', { readOpen: true }), categoryRoutes);
 app.use('/api/customers', customerRoutes);
-app.use('/api/employees', employeeRoutes);
-app.use('/api/transactions', transactionRoutes);
+// Kelola karyawan & hak akses: hanya Super Admin (bukan sub-admin).
+app.use('/api/employees', requireSuperAdmin, employeeRoutes);
+app.use('/api/transactions', requirePerm('transactions', { readOpen: false }), transactionRoutes);
 
+// /api/inventory & /api/dashboard punya izin per-sub-route (lihat file rutenya).
 app.use('/api/inventory', inventoryRoutes);
-app.use('/api/suppliers', supplierRoutes);
-app.use('/api/consignors', consignorRoutes);
-app.use('/api/purchase-orders', purchaseOrderRoutes);
+app.use('/api/suppliers', requirePerm('suppliers', { readOpen: true }), supplierRoutes);
+app.use('/api/consignors', requirePerm('consignors', { readOpen: true }), consignorRoutes);
+app.use('/api/purchase-orders', requirePerm('purchases'), purchaseOrderRoutes);
 // Data keuangan/laporan & pengeluaran hanya untuk Admin (web) — kasir/petugas stok ditolak.
-app.use('/api/expenses', requireAdminOnly, expenseRoutes);
+app.use('/api/expenses', requireAdminOnly, requirePerm('expenses'), expenseRoutes);
 app.use('/api/dashboard', requireAdminOnly, dashboardRoutes);
 app.use('/api/crm', crmRoutes);
 app.use('/api/sync', syncRoutes);

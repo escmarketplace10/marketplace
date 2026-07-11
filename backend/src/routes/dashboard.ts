@@ -1,10 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../database';
+import { requirePerm } from '../middleware/permissions';
 
 const router = Router();
 
 // GET /api/dashboard/summary - Today's overview
-router.get('/summary', async (_req: Request, res: Response) => {
+router.get('/summary', requirePerm('dashboard'), async (_req: Request, res: Response) => {
   const db = getDb();
   const today = new Date().toISOString().slice(0, 10);
 
@@ -50,7 +51,7 @@ router.get('/summary', async (_req: Request, res: Response) => {
 });
 
 // GET /api/dashboard/sales-chart - Sales data for charts
-router.get('/sales-chart', async (req: Request, res: Response) => {
+router.get('/sales-chart', requirePerm('dashboard'), async (req: Request, res: Response) => {
   const db = getDb();
   const { period, start_date, end_date } = req.query;
   const days = period === 'week' ? 7 : period === 'month' ? 30 : period === 'year' ? 365 : 7;
@@ -70,7 +71,7 @@ router.get('/sales-chart', async (req: Request, res: Response) => {
 });
 
 // GET /api/dashboard/payment-methods
-router.get('/payment-methods', async (req: Request, res: Response) => {
+router.get('/payment-methods', requirePerm('dashboard'), async (req: Request, res: Response) => {
   const db = getDb();
   const { start_date, end_date } = req.query;
   const startDate = start_date || new Date().toISOString().slice(0, 10);
@@ -88,7 +89,7 @@ router.get('/payment-methods', async (req: Request, res: Response) => {
 });
 
 // GET /api/dashboard/peak-hours
-router.get('/peak-hours', async (req: Request, res: Response) => {
+router.get('/peak-hours', requirePerm('dashboard'), async (req: Request, res: Response) => {
   const db = getDb();
   const { start_date, end_date } = req.query;
   const startDate = start_date || new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
@@ -107,7 +108,7 @@ router.get('/peak-hours', async (req: Request, res: Response) => {
 
 // GET /api/dashboard/profit-loss
 // Menerima start_date/end_date (app Flutter) ATAU from/to (web admin).
-router.get('/profit-loss', async (req: Request, res: Response) => {
+router.get('/profit-loss', requirePerm('laba-rugi'), async (req: Request, res: Response) => {
   const db = getDb();
   const start = (req.query.start_date || req.query.from) as string | undefined;
   const end = (req.query.end_date || req.query.to) as string | undefined;
@@ -177,7 +178,7 @@ router.get('/profit-loss', async (req: Request, res: Response) => {
 });
 
 // GET /api/dashboard/abc-analysis
-router.get('/abc-analysis', async (req: Request, res: Response) => {
+router.get('/abc-analysis', requirePerm('dashboard'), async (req: Request, res: Response) => {
   const db = getDb();
   const { start_date, end_date } = req.query;
   const startDate = start_date || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);

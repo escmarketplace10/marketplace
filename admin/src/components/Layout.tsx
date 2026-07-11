@@ -6,42 +6,57 @@ import {
   Wallet, Users, LogOut, UserCheck, KeyRound, X, Receipt, History, UtensilsCrossed, Menu, HelpCircle, ScrollText
 } from 'lucide-react';
 import { toast, confirmDialog, errText } from '../ui/feedback';
+import { hasPerm, isSuperAdmin, type Perm } from '../lib/perms';
 
-const navItems = [
+type NavLinkDef = {
+  to: string; icon: any; label: string;
+  perm?: Perm;        // butuh izin ini (sub-admin); super admin selalu boleh
+  superOnly?: boolean; // hanya Super Admin
+  always?: boolean;    // selalu tampil (mis. Bantuan)
+};
+
+const navItems: { section: string; links: NavLinkDef[] }[] = [
   {
     section: 'Overview',
     links: [
-      { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-      { to: '/transactions', icon: Receipt, label: 'Transaksi' },
-      { to: '/laba-rugi', icon: TrendingUp, label: 'Laba Rugi' },
+      { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', perm: 'dashboard' },
+      { to: '/transactions', icon: Receipt, label: 'Transaksi', perm: 'transactions' },
+      { to: '/laba-rugi', icon: TrendingUp, label: 'Laba Rugi', perm: 'laba-rugi' },
     ]
   },
   {
     section: 'Inventaris',
     links: [
-      { to: '/products', icon: UtensilsCrossed, label: 'Kelola Menu' },
-      { to: '/stocking', icon: Package, label: 'Stok Barang' },
-      { to: '/stock-ledger', icon: History, label: 'Riwayat Stok' },
-      { to: '/suppliers', icon: Truck, label: 'Supplier' },
-      { to: '/purchases', icon: ShoppingCart, label: 'Pembelian' },
+      { to: '/products', icon: UtensilsCrossed, label: 'Kelola Menu', perm: 'products' },
+      { to: '/stocking', icon: Package, label: 'Stok Barang', perm: 'stocking' },
+      { to: '/stock-ledger', icon: History, label: 'Riwayat Stok', perm: 'stock-ledger' },
+      { to: '/suppliers', icon: Truck, label: 'Supplier', perm: 'suppliers' },
+      { to: '/purchases', icon: ShoppingCart, label: 'Pembelian', perm: 'purchases' },
     ]
   },
   {
     section: 'Keuangan',
     links: [
-      { to: '/expenses', icon: Wallet, label: 'Biaya Operasional' },
-      { to: '/consignors', icon: Users, label: 'Penitip / Margin' },
+      { to: '/expenses', icon: Wallet, label: 'Biaya Operasional', perm: 'expenses' },
+      { to: '/consignors', icon: Users, label: 'Penitip / Margin', perm: 'consignors' },
     ]
   },
   {
     section: 'Sistem',
     links: [
-      { to: '/employees', icon: UserCheck, label: 'Karyawan (Kasir)' },
-      { to: '/audit-log', icon: ScrollText, label: 'Log Aktivitas' },
-      { to: '/bantuan', icon: HelpCircle, label: 'Panduan / Bantuan' },
+      { to: '/employees', icon: UserCheck, label: 'Karyawan & Admin', superOnly: true },
+      { to: '/audit-log', icon: ScrollText, label: 'Log Aktivitas', perm: 'audit-log' },
+      { to: '/bantuan', icon: HelpCircle, label: 'Panduan / Bantuan', always: true },
     ]
   },
 ];
+
+function canSeeLink(l: NavLinkDef): boolean {
+  if (l.always) return true;
+  if (l.superOnly) return isSuperAdmin();
+  if (l.perm) return hasPerm(l.perm);
+  return true;
+}
 
 function ChangePasswordModal({ onClose }: { onClose: () => void }) {
   const [oldPwd, setOldPwd] = useState('');
@@ -142,18 +157,23 @@ export default function Layout() {
       {/* SIDEBAR */}
       <aside className={`sidebar${mobileNavOpen ? ' open' : ''}`}>
         <div className="sidebar-brand">
-          <div className="sidebar-brand-icon">☕</div>
+          <div className="sidebar-brand-icon" style={{ padding: 0, overflow: 'hidden' }}>
+            <img src="/logo.png" alt="Kantinku" width={36} height={36} style={{ borderRadius: 9, display: 'block' }} />
+          </div>
           <div className="sidebar-brand-text">
             <h2>Kantinku</h2>
             <span>Panel Admin</span>
           </div>
         </div>
 
-        {navItems.map(section => (
+        {navItems.map(section => {
+          const links = section.links.filter(canSeeLink);
+          if (links.length === 0) return null;
+          return (
           <div className="sidebar-section" key={section.section}>
             <div className="sidebar-section-label">{section.section}</div>
             <nav className="sidebar-nav">
-              {section.links.map(({ to, icon: Icon, label }) => (
+              {links.map(({ to, icon: Icon, label }) => (
                 <NavLink
                   key={to}
                   to={to}
@@ -166,7 +186,8 @@ export default function Layout() {
               ))}
             </nav>
           </div>
-        ))}
+          );
+        })}
 
         <div className="sidebar-footer">
           <div className="sidebar-user">

@@ -5,6 +5,7 @@ import { getDb } from '../database';
 import { JWT_SECRET } from '../middleware/secret';
 import { loginRateLimit } from '../middleware/rateLimit';
 import { recordAudit } from '../lib/audit';
+import { hasPermission } from '../middleware/permissions';
 
 const router = Router();
 
@@ -20,32 +21,56 @@ router.post('/login', loginRateLimit(), async (req: Request, res: Response) => {
     const db = getDb();
     const admin = await db.get('SELECT * FROM admin_users WHERE email = ?', [email]) as any;
 
-    if (!admin) {
-      return res.status(401).json({ error: 'Email atau password salah' });
+    if (admin) {
+      const isMatch = await bcrypt.compare(password, admin.password_hash);
+      if (!isMatch) return res.status(401).json({ error: 'Email atau password salah' });
+
+      // Super Admin: akses penuh.
+      const token = jwt.sign(
+        { kind: 'admin', id: admin.id, email: admin.email, name: admin.name, is_super: true },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+      await recordAudit(req, {
+        action: 'login', entity: 'admin', entity_id: admin.id,
+        summary: `Super Admin "${admin.name || admin.email}" login`,
+        actorKind: 'admin', actorId: admin.id,
+        actorLabel: `Admin: ${admin.name || admin.email}`,
+      });
+      return res.json({
+        token,
+        user: { id: admin.id, email: admin.email, name: admin.name, is_super: true, perms: null },
+      });
     }
 
-    const isMatch = await bcrypt.compare(password, admin.password_hash);
-    if (!isMatch) {
-      return res.status(401).json({ error: 'Email atau password salah' });
+    // Sub-admin: karyawan role 'admin' dengan email+password & izin terbatas.
+    const sub = await db.get(
+      "SELECT * FROM employees WHERE email = ? AND role = 'admin' AND is_active = 1",
+      [email]
+    ) as any;
+    if (sub && sub.password_hash) {
+      const isMatch = await bcrypt.compare(password, sub.password_hash);
+      if (!isMatch) return res.status(401).json({ error: 'Email atau password salah' });
+
+      const perms: string[] = Array.isArray(sub.permissions) ? sub.permissions : [];
+      const token = jwt.sign(
+        { kind: 'admin', id: sub.id, email: sub.email, name: sub.name, is_super: false, perms },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+      await recordAudit(req, {
+        action: 'login', entity: 'admin', entity_id: sub.id,
+        summary: `Sub-admin "${sub.name || sub.email}" login`,
+        actorKind: 'admin', actorId: sub.id,
+        actorLabel: `Admin: ${sub.name || sub.email}`,
+      });
+      return res.json({
+        token,
+        user: { id: sub.id, email: sub.email, name: sub.name, is_super: false, perms },
+      });
     }
 
-    const token = jwt.sign(
-      { kind: 'admin', id: admin.id, email: admin.email, name: admin.name },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    await recordAudit(req, {
-      action: 'login', entity: 'admin', entity_id: admin.id,
-      summary: `Admin "${admin.name || admin.email}" login`,
-      actorKind: 'admin', actorId: admin.id,
-      actorLabel: `Admin: ${admin.name || admin.email}`,
-    });
-
-    res.json({
-      token,
-      user: { id: admin.id, email: admin.email, name: admin.name }
-    });
+    return res.status(401).json({ error: 'Email atau password salah' });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Terjadi kesalahan pada server' });
@@ -95,6 +120,10 @@ router.get('/audit-logs', requireAdminAuth, async (req: Request, res: Response) 
   const user = (req as any).adminUser;
   if (user?.kind !== 'admin') {
     return res.status(403).json({ error: 'Hanya admin yang boleh melihat audit log.' });
+  }
+  // Sub-admin butuh izin 'audit-log'; super admin (is_super !== false) bebas.
+  if (!hasPermission(req, 'audit-log')) {
+    return res.status(403).json({ error: 'Akses ditolak: tidak memiliki izin Log Aktivitas.' });
   }
 
   const db = getDb();

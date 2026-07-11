@@ -325,6 +325,14 @@ export async function initializeSchema() {
     );
     CREATE INDEX IF NOT EXISTS audit_logs_created_idx ON audit_logs (created_at DESC);
     CREATE INDEX IF NOT EXISTS audit_logs_entity_idx ON audit_logs (entity);
+
+    -- Sub-admin: karyawan dengan role 'admin' login ke web pakai email+password
+    -- (bukan PIN) dan punya daftar izin halaman. Kolom ditambah ke tabel employees.
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS email TEXT;
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS password_hash TEXT;
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS permissions JSONB;
+    -- Sub-admin login pakai email+password, bukan PIN — PIN jadi boleh kosong.
+    ALTER TABLE employees ALTER COLUMN pin DROP NOT NULL;
   `);
 
   // Ensure default admin exists

@@ -19,6 +19,7 @@ import './App.css';
 import axios from 'axios';
 import { FeedbackHost } from './ui/feedback';
 import { ErrorBoundary } from './ui/ErrorBoundary';
+import { hasPerm, isSuperAdmin, PERMISSION_OPTIONS, type Perm } from './lib/perms';
 
 axios.defaults.baseURL = import.meta.env.VITE_API_URL || '';
 
@@ -45,6 +46,21 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Halaman pertama yang boleh diakses user (untuk index & fallback redirect).
+function firstAllowedPath(): string {
+  if (isSuperAdmin()) return '/dashboard';
+  const hit = PERMISSION_OPTIONS.find(o => hasPerm(o.key));
+  return hit ? `/${hit.key}` : '/bantuan';
+}
+
+// Guard per-rute: jika sub-admin tak punya izin, alihkan ke halaman pertama
+// yang diizinkan. Penegakan sesungguhnya tetap di backend.
+function Guard({ perm, superOnly, children }: { perm?: Perm; superOnly?: boolean; children: React.ReactNode }) {
+  const ok = superOnly ? isSuperAdmin() : perm ? hasPerm(perm) : true;
+  if (!ok) return <Navigate to={firstAllowedPath()} replace />;
+  return <>{children}</>;
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -56,19 +72,19 @@ function App() {
             <Layout />
           </RequireAuth>
         }>
-          <Route index element={<Navigate to="/dashboard" />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="transactions" element={<Transactions />} />
-          <Route path="laba-rugi" element={<LabaRugi />} />
-          <Route path="products" element={<Products />} />
-          <Route path="stocking" element={<Stocking />} />
-          <Route path="stock-ledger" element={<StockLedger />} />
-          <Route path="suppliers" element={<Suppliers />} />
-          <Route path="purchases" element={<Purchases />} />
-          <Route path="expenses" element={<Expenses />} />
-          <Route path="consignors" element={<Consignors />} />
-          <Route path="employees" element={<Employees />} />
-          <Route path="audit-log" element={<AuditLog />} />
+          <Route index element={<Navigate to={firstAllowedPath()} replace />} />
+          <Route path="dashboard" element={<Guard perm="dashboard"><Dashboard /></Guard>} />
+          <Route path="transactions" element={<Guard perm="transactions"><Transactions /></Guard>} />
+          <Route path="laba-rugi" element={<Guard perm="laba-rugi"><LabaRugi /></Guard>} />
+          <Route path="products" element={<Guard perm="products"><Products /></Guard>} />
+          <Route path="stocking" element={<Guard perm="stocking"><Stocking /></Guard>} />
+          <Route path="stock-ledger" element={<Guard perm="stock-ledger"><StockLedger /></Guard>} />
+          <Route path="suppliers" element={<Guard perm="suppliers"><Suppliers /></Guard>} />
+          <Route path="purchases" element={<Guard perm="purchases"><Purchases /></Guard>} />
+          <Route path="expenses" element={<Guard perm="expenses"><Expenses /></Guard>} />
+          <Route path="consignors" element={<Guard perm="consignors"><Consignors /></Guard>} />
+          <Route path="employees" element={<Guard superOnly><Employees /></Guard>} />
+          <Route path="audit-log" element={<Guard perm="audit-log"><AuditLog /></Guard>} />
           <Route path="bantuan" element={<Bantuan />} />
           <Route path="*" element={<div style={{ padding: '40px', textAlign: 'center' }}><h2>404 — Halaman tidak ditemukan</h2></div>} />
         </Route>
