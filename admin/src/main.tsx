@@ -8,3 +8,12 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+// Daftarkan service worker supaya admin bisa di-install sebagai PWA di HP.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      /* abaikan: PWA opsional, app tetap jalan tanpa service worker */
+    });
+  });
+}

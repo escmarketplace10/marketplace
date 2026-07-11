@@ -76,6 +76,32 @@ body {
   scrollbar-width: thin;
   scrollbar-color: #44403C transparent;
   border-right: 1px solid rgba(255, 255, 255, 0.05);
+  transition: transform 0.25s ease;
+}
+
+/* Tombol hamburger & overlay drawer — hanya tampil di layar kecil (lihat @media). */
+.navbar-hamburger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin-right: 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.navbar-hamburger:hover { background: rgba(0, 0, 0, 0.05); }
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+  background: rgba(0, 0, 0, 0.45);
 }
 
 .sidebar-brand {
@@ -837,10 +863,19 @@ tbody tr:hover { background: var(--primary-50); }
 /* ========== RESPONSIVE ========== */
 @media (max-width: 900px) {
   :root { --sidebar-width: 0px; }
-  .sidebar { transform: translateX(-100%); }
+  /* Sidebar jadi drawer: lebar tetap, geser keluar layar sampai dibuka. */
+  .sidebar {
+    width: 264px;
+    max-width: 82vw;
+    transform: translateX(-100%);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.25);
+  }
+  .sidebar.open { transform: translateX(0); }
+  .sidebar-overlay.show { display: block; }
+  .navbar-hamburger { display: inline-flex; }
   .main-content { margin-left: 0; }
   .page-content { padding: 20px 16px; }
-  .navbar { padding: 0 16px; }
+  .navbar { padding: 0 12px; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
 }
 

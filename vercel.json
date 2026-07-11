@@ -21,6 +21,10 @@
       "destination": "/admin/assets/$1"
     },
     {
+      "source": "/(sw.js|manifest.webmanifest|icon.svg|favicon.svg|icons.svg)",
+      "destination": "/admin/$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/admin/index.html"
     }

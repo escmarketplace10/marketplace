@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
   LayoutDashboard, TrendingUp, Package, Truck, ShoppingCart,
-  Wallet, Users, LogOut, UserCheck, KeyRound, X, Receipt, History, UtensilsCrossed
+  Wallet, Users, LogOut, UserCheck, KeyRound, X, Receipt, History, UtensilsCrossed, Menu
 } from 'lucide-react';
 import { toast, confirmDialog, errText } from '../ui/feedback';
 
@@ -107,6 +107,8 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showChangePwd, setShowChangePwd] = useState(false);
+  // Sidebar sebagai drawer di HP: default tertutup, dibuka via tombol hamburger.
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const adminUser = (() => {
     try { return JSON.parse(localStorage.getItem('admin_user') || '{}'); } catch { return {}; }
@@ -129,8 +131,14 @@ export default function Layout() {
 
   return (
     <div className="app-container">
+      {/* Overlay gelap saat drawer terbuka di HP; klik untuk menutup. */}
+      <div
+        className={`sidebar-overlay${mobileNavOpen ? ' show' : ''}`}
+        onClick={() => setMobileNavOpen(false)}
+      />
+
       {/* SIDEBAR */}
-      <aside className="sidebar">
+      <aside className={`sidebar${mobileNavOpen ? ' open' : ''}`}>
         <div className="sidebar-brand">
           <div className="sidebar-brand-icon">☕</div>
           <div className="sidebar-brand-text">
@@ -147,6 +155,7 @@ export default function Layout() {
                 <NavLink
                   key={to}
                   to={to}
+                  onClick={() => setMobileNavOpen(false)}
                   className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
                 >
                   <Icon size={17} />
@@ -183,6 +192,13 @@ export default function Layout() {
       {/* MAIN */}
       <main className="main-content">
         <header className="navbar">
+          <button
+            className="navbar-hamburger"
+            aria-label="Buka menu"
+            onClick={() => setMobileNavOpen(true)}
+          >
+            <Menu size={22} />
+          </button>
           <div className="navbar-left">
             <div className="navbar-title">
               {currentPage?.label || 'Dashboard'}
