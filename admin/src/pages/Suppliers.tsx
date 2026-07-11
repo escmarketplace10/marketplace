@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Search, Plus, Truck, Edit2, Trash2 } from 'lucide-react';
+import { toast, confirmDialog } from '../ui/feedback';
 
 export default function Suppliers() {
   const [suppliers, setSuppliers] = useState<any[]>([]);
@@ -26,26 +27,38 @@ export default function Suppliers() {
   const openEdit = (s: any) => { setForm({ name: s.name, contact_person: s.contact_person || '', phone: s.phone || '', email: s.email || '', address: s.address || '' }); setModal(s); };
 
   const handleSave = async () => {
-    if (!form.name) return alert('Nama supplier wajib diisi');
+    if (!form.name) { toast('Nama supplier wajib diisi', 'error'); return; }
     setSubmitting(true);
     try {
       if (modal === 'add') await axios.post('/api/suppliers', form, { headers });
       else await axios.put(`/api/suppliers/${modal.id}`, form, { headers });
       setModal(null);
+      toast(modal === 'add' ? 'Supplier ditambahkan.' : 'Supplier diperbarui.', 'success');
       load();
-    } catch (e: any) { alert(e.response?.data?.error || 'Gagal menyimpan'); }
+    } catch (e: any) { toast(e.response?.data?.error || 'Gagal menyimpan', 'error'); }
     finally { setSubmitting(false); }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Hapus supplier ini?')) return;
-    await axios.delete(`/api/suppliers/${id}`, { headers });
-    load();
+    const ok = await confirmDialog({
+      title: 'Hapus Supplier',
+      message: 'Hapus supplier ini? Supplier akan hilang dari daftar.',
+      confirmText: 'Hapus',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await axios.delete(`/api/suppliers/${id}`, { headers });
+      toast('Supplier dihapus.', 'success');
+      load();
+    } catch (e: any) { toast(e.response?.data?.error || 'Gagal menghapus', 'error'); }
   };
 
   const filtered = suppliers.filter(s =>
-    s.name?.toLowerCase().includes(search.toLowerCase()) ||
-    s.contact_person?.toLowerCase().includes(search.toLowerCase())
+    // Supplier yang sudah dihapus (is_active=0) tidak ditampilkan lagi.
+    s.is_active !== 0 &&
+    (s.name?.toLowerCase().includes(search.toLowerCase()) ||
+      s.contact_person?.toLowerCase().includes(search.toLowerCase()))
   );
 
   return (
@@ -60,7 +73,7 @@ export default function Suppliers() {
 
       <div className="card">
         <div className="card-header">
-          <div className="card-title"><Truck size={17} color="var(--primary)" /> Daftar Supplier ({suppliers.length})</div>
+          <div className="card-title"><Truck size={17} color="var(--primary)" /> Daftar Supplier ({suppliers.filter(s => s.is_active !== 0).length})</div>
           <div className="search-input-wrapper" style={{ minWidth: 220 }}>
             <Search size={15} />
             <input className="search-input" placeholder="Cari supplier..." value={search} onChange={e => setSearch(e.target.value)} />

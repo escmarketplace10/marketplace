@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Plus, Wallet, Search, Trash2 } from 'lucide-react';
+import { toast, confirmDialog } from '../ui/feedback';
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n);
@@ -28,21 +29,31 @@ export default function Expenses() {
   useEffect(() => { load(); }, []);
 
   const handleAdd = async () => {
-    if (!form.category || !form.amount) return alert('Kategori dan jumlah wajib diisi');
+    if (!form.category || !form.amount) { toast('Kategori dan jumlah wajib diisi', 'error'); return; }
     setSubmitting(true);
     try {
       await axios.post('/api/expenses', { ...form, amount: Number(form.amount) }, { headers });
       setModal(false);
       setForm({ category: '', description: '', amount: '', payment_method: 'cash' });
+      toast('Biaya dicatat.', 'success');
       load();
-    } catch (e: any) { alert(e.response?.data?.error || 'Gagal menyimpan'); }
+    } catch (e: any) { toast(e.response?.data?.error || 'Gagal menyimpan', 'error'); }
     finally { setSubmitting(false); }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Hapus catatan biaya ini?')) return;
-    await axios.delete(`/api/expenses/${id}`, { headers });
-    load();
+    const ok = await confirmDialog({
+      title: 'Hapus Biaya',
+      message: 'Hapus catatan biaya ini?',
+      confirmText: 'Hapus',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await axios.delete(`/api/expenses/${id}`, { headers });
+      toast('Catatan biaya dihapus.', 'success');
+      load();
+    } catch (e: any) { toast(e.response?.data?.error || 'Gagal menghapus', 'error'); }
   };
 
   const filtered = expenses.filter(e =>

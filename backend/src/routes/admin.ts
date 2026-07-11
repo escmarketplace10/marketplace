@@ -3,11 +3,12 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { getDb } from '../database';
 import { JWT_SECRET } from '../middleware/secret';
+import { loginRateLimit } from '../middleware/rateLimit';
 
 const router = Router();
 
 // POST /api/admin/login
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', loginRateLimit(), async (req: Request, res: Response) => {
   const { email, password } = req.body;
   
   if (!email || !password) {

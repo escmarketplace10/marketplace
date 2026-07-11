@@ -6,6 +6,7 @@ import path from 'path';
 import fs from 'fs';
 import { getDb, closeDb, initializeSchema } from './database';
 import { requireAuth } from './middleware/requireAuth';
+import { requireAdminOnly } from './middleware/roleGuard';
 
 import authRoutes from './routes/auth';
 import productRoutes from './routes/products';
@@ -27,8 +28,18 @@ import adminRoutes from './routes/admin';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+// CORS: batasi ke origin yang di-set di env (comma-separated). Kosong = izinkan semua (dev).
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+app.use(
+  cors({
+    origin: allowedOrigins.length ? allowedOrigins : true,
+  })
+);
+// 8mb menampung foto produk base64 (~33% inflasi) tapi tetap membatasi payload.
+app.use(express.json({ limit: '8mb' }));
 app.use(morgan('dev'));
 
 // Ensure database is initialized before handling requests
@@ -69,8 +80,9 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/consignors', consignorRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
-app.use('/api/expenses', expenseRoutes);
-app.use('/api/dashboard', dashboardRoutes);
+// Data keuangan/laporan & pengeluaran hanya untuk Admin (web) — kasir/petugas stok ditolak.
+app.use('/api/expenses', requireAdminOnly, expenseRoutes);
+app.use('/api/dashboard', requireAdminOnly, dashboardRoutes);
 app.use('/api/crm', crmRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/admin', adminRoutes);
@@ -83,7 +95,12 @@ app.get('/api/health', (_req, res) => {
 // Error handler
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err.stack);
-  res.status(500).json({ error: 'Internal Server Error', message: err.message });
+  // Jangan bocorkan detail internal ke klien di produksi.
+  const isProd = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
+  res.status(500).json({
+    error: 'Internal Server Error',
+    ...(isProd ? {} : { message: err.message }),
+  });
 });
 
 import os from 'os';

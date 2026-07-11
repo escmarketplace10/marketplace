@@ -5,6 +5,7 @@ import {
   LayoutDashboard, TrendingUp, Package, Truck, ShoppingCart,
   Wallet, Users, LogOut, UserCheck, KeyRound, X, Receipt, History, UtensilsCrossed
 } from 'lucide-react';
+import { toast, confirmDialog } from '../ui/feedback';
 
 const navItems = [
   {
@@ -58,7 +59,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
       await axios.post('/api/admin/change-password',
         { old_password: oldPwd, new_password: newPwd },
         { headers: { Authorization: `Bearer ${token}` } });
-      alert('Password berhasil diganti. Silakan login ulang.');
+      toast('Password berhasil diganti. Silakan login ulang.', 'success');
       localStorage.removeItem('admin_token');
       localStorage.removeItem('admin_user');
       navigate('/login');
@@ -113,8 +114,14 @@ export default function Layout() {
 
   const currentPage = navItems.flatMap(s => s.links).find(l => location.pathname === l.to || location.pathname.startsWith(l.to + '/'));
 
-  const handleLogout = () => {
-    if (!confirm('Yakin ingin keluar dari Panel Admin?')) return;
+  const handleLogout = async () => {
+    const ok = await confirmDialog({
+      title: 'Keluar',
+      message: 'Yakin ingin keluar dari Panel Admin?',
+      confirmText: 'Keluar',
+      danger: true,
+    });
+    if (!ok) return;
     localStorage.removeItem('admin_token');
     localStorage.removeItem('admin_user');
     navigate('/login');

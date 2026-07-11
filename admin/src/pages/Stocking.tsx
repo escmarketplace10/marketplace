@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Search, Package, ArrowUpDown } from 'lucide-react';
+import { toast } from '../ui/feedback';
 
 const DECIMAL_UNITS = new Set(['Kg', 'Mg', 'gram', 'liter', 'ml']);
 
@@ -50,9 +51,10 @@ export default function Stocking() {
         notes: modal.notes || undefined
       }, { headers });
       setModal(null);
+      toast('Stok diperbarui.', 'success');
       load();
     } catch (e: any) {
-      alert(e.response?.data?.error || 'Gagal menyimpan');
+      toast(e.response?.data?.error || 'Gagal menyimpan', 'error');
     } finally { setSubmitting(false); }
   };
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Users, Plus, Search, Edit2, Percent } from 'lucide-react';
+import { toast } from '../ui/feedback';
 
 
 
@@ -28,14 +29,15 @@ export default function Consignors() {
   const openEdit = (c: any) => { setForm({ name: c.name, phone: c.phone || '', notes: c.notes || '' }); setModal(c); };
 
   const handleSave = async () => {
-    if (!form.name) return alert('Nama penitip wajib diisi');
+    if (!form.name) { toast('Nama penitip wajib diisi', 'error'); return; }
     setSubmitting(true);
     try {
       if (modal === 'add') await axios.post('/api/consignors', form, { headers });
       else await axios.put(`/api/consignors/${modal.id}`, form, { headers });
       setModal(null);
+      toast(modal === 'add' ? 'Penitip ditambahkan.' : 'Penitip diperbarui.', 'success');
       load();
-    } catch (e: any) { alert(e.response?.data?.error || 'Gagal menyimpan'); }
+    } catch (e: any) { toast(e.response?.data?.error || 'Gagal menyimpan', 'error'); }
     finally { setSubmitting(false); }
   };
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Receipt, Search, Eye, XCircle, Wallet, TrendingUp, Ban } from 'lucide-react';
+import { toast } from '../ui/feedback';
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n || 0);
@@ -21,6 +22,8 @@ export default function Transactions() {
   const [voidFilter, setVoidFilter] = useState(''); // '', '0', '1'
   const [detail, setDetail] = useState<any>(null);
   const [voiding, setVoiding] = useState(false);
+  const [showVoidModal, setShowVoidModal] = useState(false);
+  const [voidReason, setVoidReason] = useState('');
 
   const token = localStorage.getItem('admin_token');
   const headers = { Authorization: `Bearer ${token}` };
@@ -51,20 +54,22 @@ export default function Transactions() {
       const r = await axios.get(`/api/transactions/${id}`, { headers });
       setDetail(r.data);
     } catch (e: any) {
-      alert(e.response?.data?.error || 'Gagal memuat detail transaksi');
+      toast(e.response?.data?.error || 'Gagal memuat detail transaksi', 'error');
     }
   };
 
-  const handleVoid = async () => {
-    const reason = prompt('Alasan pembatalan (void) transaksi ini:');
-    if (reason === null) return;
+  const openVoidModal = () => { setVoidReason(''); setShowVoidModal(true); };
+
+  const confirmVoid = async () => {
     setVoiding(true);
     try {
-      await axios.post(`/api/transactions/${detail.id}/void`, { reason }, { headers });
+      await axios.post(`/api/transactions/${detail.id}/void`, { reason: voidReason.trim() }, { headers });
+      setShowVoidModal(false);
       setDetail(null);
+      toast('Transaksi dibatalkan (void).', 'success');
       load();
     } catch (e: any) {
-      alert(e.response?.data?.error || 'Gagal membatalkan transaksi');
+      toast(e.response?.data?.error || 'Gagal membatalkan transaksi', 'error');
     } finally {
       setVoiding(false);
     }
@@ -214,10 +219,43 @@ export default function Transactions() {
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setDetail(null)}>Tutup</button>
               {!detail.is_void && (
-                <button className="btn btn-danger" onClick={handleVoid} disabled={voiding}>
-                  <XCircle size={14} /> {voiding ? 'Membatalkan...' : 'Batalkan (Void)'}
+                <button className="btn btn-danger" onClick={openVoidModal} disabled={voiding}>
+                  <XCircle size={14} /> Batalkan (Void)
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal alasan void — pengganti prompt() bawaan */}
+      {showVoidModal && (
+        <div className="modal-overlay" onClick={() => !voiding && setShowVoidModal(false)}>
+          <div className="modal" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">Batalkan Transaksi</div>
+              <button className="modal-close" onClick={() => setShowVoidModal(false)}><XCircle size={16} /></button>
+            </div>
+            <div className="modal-body">
+              <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', marginTop: 0, lineHeight: 1.5 }}>
+                Void mengembalikan stok & mengubah catatan keuangan. Tindakan ini tidak bisa dibatalkan.
+              </p>
+              <div className="form-group">
+                <label className="form-label">Alasan pembatalan (opsional)</label>
+                <textarea
+                  className="form-input"
+                  rows={3}
+                  value={voidReason}
+                  onChange={e => setVoidReason(e.target.value)}
+                  placeholder="Contoh: salah input, pesanan dibatalkan pelanggan"
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setShowVoidModal(false)} disabled={voiding}>Batal</button>
+              <button className="btn btn-danger" onClick={confirmVoid} disabled={voiding}>
+                <XCircle size={14} /> {voiding ? 'Membatalkan...' : 'Ya, Batalkan'}
+              </button>
             </div>
           </div>
         </div>

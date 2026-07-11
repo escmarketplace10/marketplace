@@ -3,11 +3,13 @@ import jwt from 'jsonwebtoken';
 import { getDb } from '../database';
 import sha256 from 'sha256';
 import { JWT_SECRET } from '../middleware/secret';
+import { loginRateLimit } from '../middleware/rateLimit';
 
 const router = Router();
 
+// PIN 4-6 digit + hash cepat = mudah brute-force. Batasi percobaan per IP.
 // POST /api/auth/login - Login with PIN
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', loginRateLimit(), async (req: Request, res: Response) => {
   const { pin } = req.body;
   if (!pin) return res.status(400).json({ error: 'PIN is required' });
 

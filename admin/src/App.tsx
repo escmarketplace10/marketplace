@@ -15,8 +15,26 @@ import Consignors from './pages/Consignors';
 import Employees from './pages/Employees';
 import './App.css';
 import axios from 'axios';
+import { FeedbackHost } from './ui/feedback';
 
 axios.defaults.baseURL = import.meta.env.VITE_API_URL || '';
+
+// Token admin bisa kedaluwarsa (7 hari). Tanpa penanganan, halaman gagal diam-diam
+// dan tampak "rusak". Interceptor ini: kalau server balas 401, bersihkan sesi dan
+// lempar ke /login supaya user tahu harus login ulang.
+axios.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (err?.response?.status === 401) {
+      localStorage.removeItem('admin_token');
+      localStorage.removeItem('admin_user');
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(err);
+  }
+);
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('admin_token');
@@ -49,6 +67,7 @@ function App() {
           <Route path="*" element={<div style={{ padding: '40px', textAlign: 'center' }}><h2>404 — Halaman tidak ditemukan</h2></div>} />
         </Route>
       </Routes>
+      <FeedbackHost />
     </BrowserRouter>
   );
 }

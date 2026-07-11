@@ -74,7 +74,6 @@ export default function Dashboard() {
           label="Pendapatan Hari Ini"
           value={fmt(stats?.today_revenue ?? 0)}
           color="indigo"
-          trend={12}
         />
         <StatCard
           icon={<ShoppingBag size={22} color="#F59E0B" />}
@@ -82,7 +81,6 @@ export default function Dashboard() {
           value={stats?.today_transactions ?? 0}
           sub="pesanan selesai"
           color="amber"
-          trend={5}
         />
         <StatCard
           icon={<Users size={22} color="#10B981" />}

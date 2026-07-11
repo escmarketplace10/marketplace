@@ -29,15 +29,20 @@ async function seed() {
     uuid(), 'Kasir Contoh', sha256('123456'), 'cashier'
   ]);
 
-  // Buat admin web default
+  // Buat admin web default — password dari env, atau acak (cetak sekali).
   const bcrypt = require('bcryptjs');
-  const passwordHash = await bcrypt.hash('password123', 10);
+  const crypto = require('crypto');
+  const email = process.env.DEFAULT_ADMIN_EMAIL || 'admin@kantinku.com';
+  const envPass = process.env.DEFAULT_ADMIN_PASSWORD;
+  const password = envPass || crypto.randomBytes(12).toString('base64url');
+  const passwordHash = await bcrypt.hash(password, 10);
   await db.run(
     'INSERT INTO admin_users (id, email, password_hash, name) VALUES (?, ?, ?, ?)',
-    ['admin_web_1', 'admin@kantinku.com', passwordHash, 'Super Admin']
+    ['admin_web_1', email, passwordHash, 'Super Admin']
   );
 
-  console.log('✅ Database siap. Login Admin Web: admin@kantinku.com / password123');
+  console.log(`✅ Database siap. Login Admin Web: ${email}`);
+  if (!envPass) console.log(`   PASSWORD ACAK (segera ganti): ${password}`);
   console.log('   Kasir contoh untuk aplikasi: PIN 123456 (peran Kasir).');
   console.log('   (Tambah kategori, menu, dan karyawan langsung di Web Admin.)');
 

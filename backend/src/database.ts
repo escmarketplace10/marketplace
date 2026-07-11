@@ -316,12 +316,26 @@ export async function initializeSchema() {
     const adminCount = await db.get('SELECT COUNT(*) as count FROM admin_users');
     if (!adminCount || parseInt(adminCount.count) === 0) {
       const bcrypt = require('bcryptjs');
-      const passwordHash = await bcrypt.hash('password123', 10);
+      const crypto = require('crypto');
+      const email = process.env.DEFAULT_ADMIN_EMAIL || 'admin@kantinku.com';
+      // Password default TIDAK boleh hardcoded. Ambil dari env; kalau kosong,
+      // buat acak dan cetak SEKALI supaya wajib diganti admin.
+      const envPass = process.env.DEFAULT_ADMIN_PASSWORD;
+      const password = envPass || crypto.randomBytes(12).toString('base64url');
+      const passwordHash = await bcrypt.hash(password, 10);
       await db.run(
         'INSERT INTO admin_users (id, email, password_hash, name) VALUES (?, ?, ?, ?)',
-        ['admin_web_1', 'admin@kantinku.com', passwordHash, 'Super Admin']
+        ['admin_web_1', email, passwordHash, 'Super Admin']
       );
-      console.log('Default admin created: admin@kantinku.com / password123');
+      if (envPass) {
+        console.log(`Default admin created: ${email} (password dari DEFAULT_ADMIN_PASSWORD)`);
+      } else {
+        console.log('=================================================================');
+        console.log(`Default admin created: ${email}`);
+        console.log(`GENERATED PASSWORD (login lalu SEGERA ganti): ${password}`);
+        console.log('Set DEFAULT_ADMIN_PASSWORD di env untuk menghindari password acak.');
+        console.log('=================================================================');
+      }
     }
   } catch (e) {
     console.error('Failed to auto-seed admin:', e);

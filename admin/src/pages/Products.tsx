@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Search, Plus, Pencil, Trash2, UtensilsCrossed, FolderOpen, X } from 'lucide-react';
+import { toast, confirmDialog } from '../ui/feedback';
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n);
 const rupiah = (n: number) => 'Rp ' + fmt(n);
@@ -49,6 +50,9 @@ export default function Products() {
   useEffect(() => { load(); }, []);
 
   const filtered = products.filter(p => {
+    // Produk yang sudah dihapus (dinonaktifkan) jangan ditampilkan — dulu masih
+    // muncul redup (opacity 0.45) sehingga terlihat seperti "bagian abu" misterius.
+    if (p.is_active === 0) return false;
     if (filterCat && p.category_id !== filterCat) return false;
     if (!search) return true;
     const s = search.toLowerCase();
@@ -76,7 +80,7 @@ export default function Products() {
   const saveProduct = async () => {
     if (!modal) return;
     if (!modal.name || !modal.category_id || modal.price === '') {
-      alert('Nama, kategori, dan harga wajib diisi.');
+      toast('Nama, kategori, dan harga wajib diisi.', 'error');
       return;
     }
     setSubmitting(true);
@@ -101,19 +105,27 @@ export default function Products() {
         await axios.post('/api/products', data, { headers });
       }
       setModal(null);
+      toast(modal.id ? 'Produk diperbarui.' : 'Produk ditambahkan.', 'success');
       load();
     } catch (e: any) {
-      alert(e.response?.data?.error || 'Gagal menyimpan produk');
+      toast(e.response?.data?.error || 'Gagal menyimpan produk', 'error');
     } finally { setSubmitting(false); }
   };
 
   const deleteProduct = async (p: any) => {
-    if (!confirm(`Hapus "${p.name}"? Produk akan dinonaktifkan.`)) return;
+    const ok = await confirmDialog({
+      title: 'Hapus Produk',
+      message: `Hapus "${p.name}"? Produk akan dinonaktifkan dan hilang dari daftar.`,
+      confirmText: 'Hapus',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await axios.delete(`/api/products/${p.id}`, { headers });
+      toast('Produk dihapus.', 'success');
       load();
     } catch (e: any) {
-      alert(e.response?.data?.error || 'Gagal menghapus');
+      toast(e.response?.data?.error || 'Gagal menghapus', 'error');
     }
   };
 
@@ -127,7 +139,7 @@ export default function Products() {
   };
 
   const saveCategory = async () => {
-    if (!catModal?.name) { alert('Nama kategori wajib diisi.'); return; }
+    if (!catModal?.name) { toast('Nama kategori wajib diisi.', 'error'); return; }
     setSubmitting(true);
     try {
       if (catModal.id) {
@@ -136,20 +148,28 @@ export default function Products() {
         await axios.post('/api/categories', { name: catModal.name, icon: catModal.icon }, { headers });
       }
       setCatModal(null);
+      toast(catModal.id ? 'Kategori diperbarui.' : 'Kategori ditambahkan.', 'success');
       load();
     } catch (e: any) {
-      alert(e.response?.data?.error || 'Gagal menyimpan kategori');
+      toast(e.response?.data?.error || 'Gagal menyimpan kategori', 'error');
     } finally { setSubmitting(false); }
   };
 
   const deleteCategory = async (c: Category) => {
-    if (c.product_count > 0) { alert('Tidak bisa hapus kategori yang masih punya produk. Pindahkan produknya dulu.'); return; }
-    if (!confirm(`Hapus kategori "${c.name}"?`)) return;
+    if (c.product_count > 0) { toast('Tidak bisa hapus kategori yang masih punya produk. Pindahkan produknya dulu.', 'error'); return; }
+    const ok = await confirmDialog({
+      title: 'Hapus Kategori',
+      message: `Hapus kategori "${c.name}"?`,
+      confirmText: 'Hapus',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await axios.delete(`/api/categories/${c.id}`, { headers });
+      toast('Kategori dihapus.', 'success');
       load();
     } catch (e: any) {
-      alert(e.response?.data?.error || 'Gagal menghapus kategori');
+      toast(e.response?.data?.error || 'Gagal menghapus kategori', 'error');
     }
   };
 
@@ -256,7 +276,7 @@ export default function Products() {
               </thead>
               <tbody>
                 {filtered.map(p => (
-                  <tr key={p.id} style={{ opacity: p.is_active === 0 ? 0.45 : 1 }}>
+                  <tr key={p.id}>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         {p.image ? (

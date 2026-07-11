@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Plus, Search, Edit2, Trash2, KeyRound, UserCheck, ShieldAlert } from 'lucide-react';
+import { toast, confirmDialog } from '../ui/feedback';
 
 export default function Employees() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -37,12 +38,12 @@ export default function Employees() {
   };
 
   const handleSave = async () => {
-    if (!form.name) return alert('Nama karyawan wajib diisi');
+    if (!form.name) { toast('Nama karyawan wajib diisi', 'error'); return; }
     if (modal === 'add' && (!form.pin || form.pin.length < 4 || form.pin.length > 6)) {
-      return alert('PIN Login wajib diisi (4-6 digit angka)');
+      toast('PIN Login wajib diisi (4-6 digit angka)', 'error'); return;
     }
     if (form.pin && (form.pin.length < 4 || form.pin.length > 6)) {
-      return alert('PIN Login harus 4-6 digit angka');
+      toast('PIN Login harus 4-6 digit angka', 'error'); return;
     }
 
     setSubmitting(true);
@@ -50,15 +51,25 @@ export default function Employees() {
       if (modal === 'add') await axios.post('/api/employees', form, { headers });
       else await axios.put(`/api/employees/${modal.id}`, form, { headers });
       setModal(null);
+      toast(modal === 'add' ? 'Karyawan ditambahkan.' : 'Data karyawan diperbarui.', 'success');
       load();
-    } catch (e: any) { alert(e.response?.data?.error || 'Gagal menyimpan data karyawan'); }
+    } catch (e: any) { toast(e.response?.data?.error || 'Gagal menyimpan data karyawan', 'error'); }
     finally { setSubmitting(false); }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Apakah Anda yakin ingin menonaktifkan karyawan ini?')) return;
-    await axios.delete(`/api/employees/${id}`, { headers });
-    load();
+    const ok = await confirmDialog({
+      title: 'Nonaktifkan Karyawan',
+      message: 'Nonaktifkan karyawan ini? Akun tidak bisa dipakai login sampai diaktifkan kembali.',
+      confirmText: 'Nonaktifkan',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await axios.delete(`/api/employees/${id}`, { headers });
+      toast('Karyawan dinonaktifkan.', 'success');
+      load();
+    } catch (e: any) { toast(e.response?.data?.error || 'Gagal menonaktifkan', 'error'); }
   };
 
   const filtered = employees.filter(e =>

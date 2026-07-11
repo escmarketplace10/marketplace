@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { getDb } from '../database';
 import { v4 as uuid } from 'uuid';
 import sha256 from 'sha256';
+import { requireAdminOnly } from '../middleware/roleGuard';
 
 const router = Router();
 
@@ -26,7 +27,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/employees
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', requireAdminOnly, async (req: Request, res: Response) => {
   const db = getDb();
   const { name, pin, role, phone, commission_rate } = req.body;
   if (!name || !pin) return res.status(400).json({ error: 'Name and PIN required' });
@@ -39,7 +40,7 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 // PUT /api/employees/:id
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', requireAdminOnly, async (req: Request, res: Response) => {
   const db = getDb();
   const { name, pin, role, phone, commission_rate, is_active } = req.body;
   const emp = await db.get('SELECT * FROM employees WHERE id = ?', [req.params.id]) as any;
@@ -61,7 +62,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 });
 
 // DELETE /api/employees/:id
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', requireAdminOnly, async (req: Request, res: Response) => {
   const db = getDb();
   await db.run('UPDATE employees SET is_active = 0, updated_at = now() WHERE id = ?', [req.params.id]);
   return res.json({ success: true });

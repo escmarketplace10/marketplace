@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Plus, ShoppingCart, Search, Eye } from 'lucide-react';
+import { toast } from '../ui/feedback';
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n);
@@ -49,8 +50,8 @@ export default function Purchases() {
   const totalAmount = items.reduce((sum, it) => sum + (it.quantity * it.unit_cost), 0);
 
   const handleCreate = async () => {
-    if (!form.supplier_id) return alert('Pilih supplier terlebih dahulu');
-    if (items.some(it => !it.product_id || it.quantity <= 0)) return alert('Lengkapi semua item pembelian');
+    if (!form.supplier_id) { toast('Pilih supplier terlebih dahulu', 'error'); return; }
+    if (items.some(it => !it.product_id || it.quantity <= 0)) { toast('Lengkapi semua item pembelian', 'error'); return; }
     setSubmitting(true);
     try {
       await axios.post('/api/purchase-orders', {
@@ -62,8 +63,9 @@ export default function Purchases() {
       setModal(false);
       setForm({ supplier_id: '', notes: '' });
       setItems([{ product_id: '', quantity: 1, unit_cost: 0 }]);
+      toast('Pembelian dibuat.', 'success');
       load();
-    } catch (e: any) { alert(e.response?.data?.error || 'Gagal menyimpan'); }
+    } catch (e: any) { toast(e.response?.data?.error || 'Gagal menyimpan', 'error'); }
     finally { setSubmitting(false); }
   };
 

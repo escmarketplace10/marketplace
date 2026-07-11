@@ -3,6 +3,9 @@ dist/
 build/
 *.db
 *.db-journal
+*.db-wal
+*.db-shm
+backend/data/uploads/
 .env
 .DS_Store
 *.jks
