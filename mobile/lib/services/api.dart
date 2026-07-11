@@ -125,6 +125,12 @@ class Api {
   static Future<List<dynamic>> lowStock() async => List.from(await _get('/inventory/low-stock'));
   static Future<dynamic> stockOpname(List<Map<String, dynamic>> items) =>
       _send('POST', '/inventory/stock-opname', {'items': items});
+  // Pindahkan stok gudang -> stok kasir (petugas stok/admin).
+  static Future<dynamic> transferStock(String productId, num quantity) =>
+      _send('POST', '/inventory/transfer', {'product_id': productId, 'quantity': quantity});
+  // Opname stok kasir (kasir mencocokkan stok app vs fisik).
+  static Future<Map<String, dynamic>> cashierOpname(List<Map<String, dynamic>> items) async =>
+      Map<String, dynamic>.from(await _send('POST', '/inventory/cashier-opname', {'items': items}));
 
   // ---- Suppliers ----
   static Future<List<dynamic>> suppliers({String? search}) async =>

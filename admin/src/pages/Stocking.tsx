@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Search, Package, ArrowUpDown } from 'lucide-react';
+import { Search, Package, ArrowUpDown, Store } from 'lucide-react';
 import { toast } from '../ui/feedback';
 
 const DECIMAL_UNITS = new Set(['Kg', 'Mg', 'gram', 'liter', 'ml']);
@@ -18,6 +18,7 @@ export default function Stocking() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<any>(null); // { product, qty, type }
+  const [transfer, setTransfer] = useState<any>(null); // { product, qty }
   const [submitting, setSubmitting] = useState(false);
 
   const token = localStorage.getItem('admin_token');
@@ -58,6 +59,22 @@ export default function Stocking() {
     } finally { setSubmitting(false); }
   };
 
+  const handleTransfer = async () => {
+    if (!transfer) return;
+    setSubmitting(true);
+    try {
+      await axios.post('/api/inventory/transfer', {
+        product_id: transfer.product.id,
+        quantity: Math.abs(transfer.qty),
+      }, { headers });
+      setTransfer(null);
+      toast('Stok dipindahkan ke kasir.', 'success');
+      load();
+    } catch (e: any) {
+      toast(e.response?.data?.error || 'Gagal memindahkan stok', 'error');
+    } finally { setSubmitting(false); }
+  };
+
   const getStockBadge = (stock: number, minStock: number) => {
     if (stock <= 0) return <span className="badge badge-red">Habis</span>;
     if (stock <= minStock) return <span className="badge badge-yellow">⚠ Rendah</span>;
@@ -77,8 +94,8 @@ export default function Stocking() {
       <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3,1fr)', marginBottom: 24 }}>
         {[
           { label: 'Total Produk', val: products.length, icon: '📦', color: 'indigo' },
-          { label: 'Stok Rendah', val: products.filter(p => p.stock <= (p.min_stock || 0) && p.stock > 0).length, icon: '⚠️', color: 'amber' },
-          { label: 'Stok Habis', val: products.filter(p => p.stock <= 0).length, icon: '🚫', color: 'rose' },
+          { label: 'Stok Kasir Rendah', val: products.filter(p => (p.cashier_stock || 0) <= (p.min_stock || 0) && (p.cashier_stock || 0) > 0).length, icon: '⚠️', color: 'amber' },
+          { label: 'Stok Kasir Habis', val: products.filter(p => (p.cashier_stock || 0) <= 0).length, icon: '🚫', color: 'rose' },
         ].map(({ label, val, icon, color }) => (
           <div key={label} className={`stat-card ${color}`}>
             <div className="stat-card-header">
@@ -111,7 +128,8 @@ export default function Stocking() {
                   <th>Produk</th>
                   <th>SKU</th>
                   <th>Kategori</th>
-                  <th style={{ textAlign: 'center' }}>Stok Saat Ini</th>
+                  <th style={{ textAlign: 'center' }}>Stok Gudang</th>
+                  <th style={{ textAlign: 'center' }}>Stok Kasir</th>
                   <th style={{ textAlign: 'center' }}>Min. Stok</th>
                   <th>Status</th>
                   <th style={{ textAlign: 'center' }}>Aksi</th>
@@ -119,26 +137,39 @@ export default function Stocking() {
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Tidak ada produk ditemukan</td></tr>
+                  <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Tidak ada produk ditemukan</td></tr>
                 ) : filtered.map(p => (
                   <tr key={p.id}>
                     <td><span style={{ fontWeight: 600 }}>{p.name}</span></td>
                     <td><span style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--text-muted)' }}>{p.sku || '-'}</span></td>
                     <td>{p.category_name || '-'}</td>
                     <td style={{ textAlign: 'center' }}>
-                      <span style={{ fontWeight: 700, fontSize: 16, color: p.stock <= 0 ? 'var(--danger)' : p.stock <= (p.min_stock || 0) ? 'var(--warning)' : 'var(--text-primary)' }}>
+                      <span style={{ fontWeight: 700, fontSize: 16, color: p.stock <= 0 ? 'var(--danger)' : 'var(--text-primary)' }}>
                         {fmtStock(p.stock, p.unit)} {p.unit}
                       </span>
                     </td>
-                    <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{p.min_stock || 0}</td>
-                    <td>{getStockBadge(p.stock, p.min_stock)}</td>
                     <td style={{ textAlign: 'center' }}>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => setModal({ product: p, qty: 1, type: 'in', notes: '', reason: 'koreksi' })}
-                      >
-                        <ArrowUpDown size={13} /> Sesuaikan
-                      </button>
+                      <span style={{ fontWeight: 700, fontSize: 16, color: (p.cashier_stock || 0) <= 0 ? 'var(--danger)' : (p.cashier_stock || 0) <= (p.min_stock || 0) ? 'var(--warning)' : 'var(--text-primary)' }}>
+                        {fmtStock(p.cashier_stock || 0, p.unit)} {p.unit}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{p.min_stock || 0}</td>
+                    <td>{getStockBadge(p.cashier_stock || 0, p.min_stock)}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => setModal({ product: p, qty: 1, type: 'in', notes: '', reason: 'koreksi' })}
+                        >
+                          <ArrowUpDown size={13} /> Sesuaikan
+                        </button>
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={() => setTransfer({ product: p, qty: 1 })}
+                        >
+                          <Store size={13} /> Ke Kasir
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -215,6 +246,58 @@ export default function Stocking() {
               <button className="btn btn-secondary" onClick={() => setModal(null)}>Batal</button>
               <button className="btn btn-primary" onClick={handleAdjust} disabled={submitting}>
                 {submitting ? 'Menyimpan...' : '✓ Simpan Perubahan'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer ke Kasir Modal */}
+      {transfer && (
+        <div className="modal-overlay" onClick={() => setTransfer(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">🏪 Keluarkan ke Kasir — {transfer.product.name}</div>
+              <button className="modal-close" onClick={() => setTransfer(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ display: 'flex', gap: 18, marginBottom: 18 }}>
+                <div className="form-group" style={{ flex: 1, margin: 0 }}>
+                  <label className="form-label">Stok Gudang</label>
+                  <div style={{ fontWeight: 700, fontSize: 22, color: 'var(--primary)', padding: '8px 0' }}>
+                    {fmtStock(transfer.product.stock, transfer.product.unit)} {transfer.product.unit}
+                  </div>
+                </div>
+                <div className="form-group" style={{ flex: 1, margin: 0 }}>
+                  <label className="form-label">Stok Kasir</label>
+                  <div style={{ fontWeight: 700, fontSize: 22, color: 'var(--text-muted)', padding: '8px 0' }}>
+                    {fmtStock(transfer.product.cashier_stock || 0, transfer.product.unit)} {transfer.product.unit}
+                  </div>
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Jumlah Dipindahkan ke Kasir</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={DECIMAL_UNITS.has(transfer.product.unit) ? '0.01' : '1'}
+                  className="form-input"
+                  value={transfer.qty}
+                  onChange={e => setTransfer((m: any) => ({ ...m, qty: Number(e.target.value) }))}
+                />
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
+                  Stok gudang berkurang, stok kasir bertambah sebanyak jumlah ini.
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setTransfer(null)}>Batal</button>
+              <button
+                className="btn btn-primary"
+                onClick={handleTransfer}
+                disabled={submitting || transfer.qty <= 0 || transfer.qty > transfer.product.stock}
+              >
+                {submitting ? 'Memindahkan...' : '✓ Pindahkan'}
               </button>
             </div>
           </div>

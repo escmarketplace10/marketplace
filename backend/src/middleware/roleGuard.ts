@@ -20,6 +20,21 @@ export function requireStockAccess(req: Request, res: Response, next: NextFuncti
 }
 
 /**
+ * Opname stok kasir boleh dilakukan kasir sendiri (mencocokkan stok app vs
+ * fisik di lapak kasir) — selain petugas stok & admin. Beda dari
+ * requireStockAccess yang menolak kasir.
+ */
+const CASHIER_STOCK_ROLES = new Set(['cashier', 'stocking', 'admin', 'owner', 'super_admin']);
+
+export function requireCashierStockAccess(req: Request, res: Response, next: NextFunction) {
+  const auth = (req as any).auth;
+  if (!auth) return res.status(401).json({ error: 'Sesi berakhir. Silakan login ulang.' });
+  if (auth.kind === 'admin') return next();
+  if (CASHIER_STOCK_ROLES.has(String(auth.role || ''))) return next();
+  return res.status(403).json({ error: 'Akses ditolak.' });
+}
+
+/**
  * Void transaksi mengembalikan stok & mengubah catatan keuangan — hanya
  * boleh dilakukan Admin lewat Website (bukan kasir/petugas stok lewat aplikasi).
  */

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Receipt, Search, Eye, XCircle, Wallet, TrendingUp, Ban } from 'lucide-react';
+import { Receipt, Search, Eye, XCircle, Wallet, TrendingUp, Ban, Coins } from 'lucide-react';
 import { toast } from '../ui/feedback';
 
 const fmt = (n: number) =>
@@ -77,6 +77,7 @@ export default function Transactions() {
 
   const activeTrx = trx.filter(t => !t.is_void);
   const totalOmzet = activeTrx.reduce((sum, t) => sum + Number(t.grand_total || 0), 0);
+  const totalUangLebih = activeTrx.reduce((sum, t) => sum + Number(t.overpay_amount || 0), 0);
   const voidCount = trx.filter(t => t.is_void).length;
 
   return (
@@ -88,7 +89,7 @@ export default function Transactions() {
         </div>
       </div>
 
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3,1fr)', marginBottom: 24 }}>
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4,1fr)', marginBottom: 24 }}>
         <div className="stat-card indigo">
           <div className="stat-card-header"><div className="stat-card-icon indigo"><TrendingUp size={20} /></div></div>
           <div className="stat-value">{fmt(totalOmzet)}</div>
@@ -98,6 +99,11 @@ export default function Transactions() {
           <div className="stat-card-header"><div className="stat-card-icon blue"><Wallet size={20} /></div></div>
           <div className="stat-value">{activeTrx.length}</div>
           <div className="stat-label">Transaksi Selesai</div>
+        </div>
+        <div className="stat-card amber">
+          <div className="stat-card-header"><div className="stat-card-icon amber"><Coins size={20} /></div></div>
+          <div className="stat-value">{fmt(totalUangLebih)}</div>
+          <div className="stat-label">Uang Lebih (sesuai filter)</div>
         </div>
         <div className="stat-card rose">
           <div className="stat-card-header"><div className="stat-card-icon rose"><Ban size={20} /></div></div>
@@ -213,6 +219,7 @@ export default function Transactions() {
                 <Row label="Total" value={fmt(detail.grand_total)} big />
                 <Row label={`Dibayar (${paymentLabel[detail.payment_method] || detail.payment_method || '-'})`} value={fmt(detail.cash_amount)} />
                 <Row label="Kembalian" value={fmt(detail.change_amount)} />
+                {Number(detail.overpay_amount) > 0 && <Row label="Uang lebih (tidak diambil)" value={fmt(detail.overpay_amount)} />}
                 {detail.notes && <Row label="Catatan" value={detail.notes} />}
               </div>
             </div>

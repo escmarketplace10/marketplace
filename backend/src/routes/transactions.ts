@@ -70,7 +70,7 @@ router.post('/', async (req: Request, res: Response) => {
   const db = getDb();
   const {
     employee_id, customer_id, order_type, order_reference,
-    items, payment_method, cash_amount, discount_total, notes
+    items, payment_method, cash_amount, discount_total, notes, keep_change
   } = req.body;
 
   if (!employee_id || !items || !items.length) {
@@ -91,6 +91,12 @@ router.post('/', async (req: Request, res: Response) => {
     const unitPrice = item.unit_price ?? product.price;
     const itemDiscount = item.discount_amount || 0;
     const quantity = item.quantity || 1;
+
+    // Blokir jual kalau stok kasir tidak cukup (produk yang dilacak stoknya).
+    if (Number(product.is_track_stock) === 1 && Number(product.cashier_stock) < quantity) {
+      return res.status(400).json({ error: `Stok kasir tidak cukup untuk ${product.name}` });
+    }
+
     const totalPrice = (unitPrice * quantity) - itemDiscount;
     subtotal += totalPrice;
 
@@ -118,18 +124,22 @@ router.post('/', async (req: Request, res: Response) => {
 
   // Use provided cash_amount or default to grand_total
   const cashPaid = cash_amount || grandTotal;
-  const changeAmount = Math.max(0, cashPaid - grandTotal);
+  const overpaid = Math.max(0, cashPaid - grandTotal);
+  // Kalau pelanggan tidak ambil kembalian, uang lebih dicatat terpisah (masuk
+  // kas), bukan sebagai kembalian.
+  const changeAmount = keep_change ? 0 : overpaid;
+  const overpayAmount = keep_change ? overpaid : 0;
 
   // Begin transaction
   await db.transaction(async (tx) => {
     await tx.run(`
       INSERT INTO transactions (id, receipt_number, employee_id, customer_id,
         order_type, order_reference, subtotal, discount_total, grand_total,
-        payment_method, payment_status, cash_amount, change_amount, status, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?, 'completed', ?)
+        payment_method, payment_status, cash_amount, change_amount, overpay_amount, status, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?, ?, 'completed', ?)
     `, [trxId, receiptNumber, employee_id, customer_id || null,
         order_type || 'dine_in', order_reference || null, subtotal, discount, grandTotal,
-        payment_method || 'cash', cashPaid, changeAmount, notes || null]);
+        payment_method || 'cash', cashPaid, changeAmount, overpayAmount, notes || null]);
 
     for (const item of trxItems) {
       await tx.run(`
@@ -140,13 +150,13 @@ router.post('/', async (req: Request, res: Response) => {
           item.quantity, item.unit_price, item.discount_amount, item.total_price,
           item.modifier_details, item.notes, item.status]);
 
-      // Deduct stock
+      // Kurangi stok kasir (bukan stok gudang).
       await tx.run(`
-        UPDATE products SET stock = stock - ?, updated_at = now() WHERE id = ? AND is_track_stock = 1
+        UPDATE products SET cashier_stock = cashier_stock - ?, updated_at = now() WHERE id = ? AND is_track_stock = 1
       `, [item.quantity, item.product_id]);
       await tx.run(`
-        INSERT INTO inventory_movements (id, product_id, type, quantity, reference_type, reference_id, created_by)
-        VALUES (?, ?, 'out', ?, 'sale', ?, ?)
+        INSERT INTO inventory_movements (id, product_id, type, quantity, reference_type, reference_id, scope, created_by)
+        VALUES (?, ?, 'out', ?, 'sale', ?, 'cashier', ?)
       `, [uuid(), item.product_id, item.quantity, trxId, employee_id]);
     }
 
@@ -170,7 +180,7 @@ router.post('/', async (req: Request, res: Response) => {
 
   return res.json({
     success: true,
-    transaction: { id: trxId, receipt_number: receiptNumber, grand_total: grandTotal, change_amount: changeAmount }
+    transaction: { id: trxId, receipt_number: receiptNumber, grand_total: grandTotal, change_amount: changeAmount, overpay_amount: overpayAmount }
   });
 });
 
@@ -192,9 +202,9 @@ router.post('/:id/void', requireAdminOnly, async (req: Request, res: Response) =
     // Restore stock
     const items = await tx.all('SELECT * FROM transaction_items WHERE transaction_id = ?', [req.params.id]) as any[];
     for (const item of items) {
-      await tx.run('UPDATE products SET stock = stock + ? WHERE id = ? AND is_track_stock = 1', [item.quantity, item.product_id]);
-      await tx.run(`INSERT INTO inventory_movements (id, product_id, type, quantity, reference_type, reference_id, notes, created_by)
-        VALUES (?, ?, 'in', ?, 'void', ?, ?, ?)`,
+      await tx.run('UPDATE products SET cashier_stock = cashier_stock + ? WHERE id = ? AND is_track_stock = 1', [item.quantity, item.product_id]);
+      await tx.run(`INSERT INTO inventory_movements (id, product_id, type, quantity, reference_type, reference_id, scope, notes, created_by)
+        VALUES (?, ?, 'in', ?, 'void', ?, 'cashier', ?, ?)`,
         [uuid(), item.product_id, item.quantity, req.params.id, `Dikembalikan dari void: ${reason || 'Tanpa alasan'}`, voidBy]);
     }
   });

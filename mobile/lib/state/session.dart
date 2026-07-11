@@ -26,10 +26,11 @@ class Session extends ChangeNotifier {
       case 'stocking':
         return const {'menu', 'inventory', 'suppliers', 'purchase_orders', 'consignors'}
             .contains(area);
-      // Kasir: hanya transaksi & pelanggan — TIDAK boleh mengatur stok.
+      // Kasir: transaksi, pelanggan, & cek/opname stok kasir sendiri —
+      // TIDAK boleh mengatur stok gudang.
       case 'cashier':
       default:
-        return const {'pos', 'transactions', 'customers'}.contains(area);
+        return const {'pos', 'transactions', 'customers', 'stock_check'}.contains(area);
     }
   }
 

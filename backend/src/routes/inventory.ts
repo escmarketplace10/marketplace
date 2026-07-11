@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../database';
 import { v4 as uuid } from 'uuid';
-import { requireStockAccess } from '../middleware/roleGuard';
+import { requireStockAccess, requireCashierStockAccess } from '../middleware/roleGuard';
 import { getActorLabel } from '../middleware/actor';
 import { requirePerm } from '../middleware/permissions';
 
@@ -122,6 +122,77 @@ router.post('/stock-opname', requireStockAccess, requirePerm('stocking'), async 
         `, [uuid(), item.product_id, type, absDiff, `Stock opname: system ${product.stock} -> actual ${item.actual_stock}`, actor]);
 
         results.push({ product_id: item.product_id, name: product.name, old_stock: product.stock, new_stock: item.actual_stock, diff });
+      }
+    }
+  });
+
+  return res.json({ success: true, adjustments: results });
+});
+
+// POST /api/inventory/transfer - Pindahkan stok gudang -> stok kasir (admin/stocking)
+router.post('/transfer', requireStockAccess, requirePerm('stocking'), async (req: Request, res: Response) => {
+  const db = getDb();
+  const { product_id, quantity } = req.body;
+
+  const qty = Number(quantity);
+  if (!product_id || !qty || qty <= 0) {
+    return res.status(400).json({ error: 'product_id dan quantity (>0) wajib diisi' });
+  }
+
+  const product = await db.get('SELECT * FROM products WHERE id = ?', [product_id]) as any;
+  if (!product) return res.status(404).json({ error: 'Product not found' });
+  if (Number(product.stock) < qty) {
+    return res.status(400).json({ error: 'Stok gudang tidak cukup' });
+  }
+
+  const actor = getActorLabel(req);
+  const refId = uuid();
+  await db.transaction(async (tx) => {
+    await tx.run(
+      'UPDATE products SET stock = stock - ?, cashier_stock = cashier_stock + ?, updated_at = now() WHERE id = ?',
+      [qty, qty, product_id]
+    );
+    // Dua baris ledger dengan reference_id sama: keluar dari gudang, masuk ke kasir.
+    await tx.run(`
+      INSERT INTO inventory_movements (id, product_id, type, quantity, reference_type, reference_id, scope, notes, created_by)
+      VALUES (?, ?, 'out', ?, 'transfer', ?, 'warehouse', 'Pindah ke stok kasir', ?)
+    `, [uuid(), product_id, qty, refId, actor]);
+    await tx.run(`
+      INSERT INTO inventory_movements (id, product_id, type, quantity, reference_type, reference_id, scope, notes, created_by)
+      VALUES (?, ?, 'in', ?, 'transfer', ?, 'cashier', 'Terima dari stok gudang', ?)
+    `, [uuid(), product_id, qty, refId, actor]);
+  });
+
+  return res.json({ success: true, id: refId });
+});
+
+// POST /api/inventory/cashier-opname - Opname stok kasir (kasir/stocking/admin)
+router.post('/cashier-opname', requireCashierStockAccess, async (req: Request, res: Response) => {
+  const db = getDb();
+  const { items } = req.body; // [{product_id, actual_stock}]
+
+  if (!items?.length) return res.status(400).json({ error: 'Items required' });
+
+  const actor = getActorLabel(req);
+  const results: any[] = [];
+  await db.transaction(async (tx) => {
+    for (const item of items) {
+      const product = await tx.get('SELECT * FROM products WHERE id = ?', [item.product_id]) as any;
+      if (!product) continue;
+
+      const oldStock = Number(product.cashier_stock);
+      const diff = Number(item.actual_stock) - oldStock;
+      if (diff !== 0) {
+        const type = diff > 0 ? 'in' : 'out';
+        const absDiff = Math.abs(diff);
+
+        await tx.run('UPDATE products SET cashier_stock = ?, updated_at = now() WHERE id = ?', [item.actual_stock, item.product_id]);
+        await tx.run(`
+          INSERT INTO inventory_movements (id, product_id, type, quantity, reference_type, scope, notes, created_by)
+          VALUES (?, ?, ?, ?, 'opname', 'cashier', ?, ?)
+        `, [uuid(), item.product_id, type, absDiff, `Opname kasir: app ${oldStock} -> fisik ${item.actual_stock}`, actor]);
+
+        results.push({ product_id: item.product_id, name: product.name, old_stock: oldStock, new_stock: Number(item.actual_stock), diff });
       }
     }
   });

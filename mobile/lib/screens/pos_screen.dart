@@ -167,15 +167,23 @@ class _ProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final track = toInt(product['is_track_stock']) == 1;
-    final stock = toDouble(product['stock']);
+    // Kasir jual dari stok kasir, bukan stok gudang.
+    final stock = toDouble(product['cashier_stock']);
     final minStock = toDouble(product['min_stock']);
+    final habis = track && stock <= 0;
     final low = track && stock <= minStock;
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(14),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: onTap,
+        onTap: () {
+          if (habis) {
+            showSnack(context, 'Stok kasir habis. Minta petugas stok keluarkan dari gudang.', error: true);
+          } else {
+            onTap();
+          }
+        },
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
@@ -198,7 +206,7 @@ class _ProductCard extends StatelessWidget {
                     Text(rupiah(toDouble(product['price'])),
                         style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800, fontSize: 13)),
                     if (track)
-                      Text('Stok ${formatStock(stock, product['unit']?.toString())} ${product['unit'] ?? ''}',
+                      Text(habis ? 'Stok kasir habis' : 'Stok kasir ${formatStock(stock, product['unit']?.toString())} ${product['unit'] ?? ''}',
                           style: TextStyle(fontSize: 10.5, color: low ? AppColors.danger : AppColors.muted, fontWeight: FontWeight.w600)),
                   ],
                 ),
@@ -570,6 +578,7 @@ class _PaymentSheetState extends State<_PaymentSheet> {
   String _method = 'cash';
   final _cashCtrl = TextEditingController();
   bool _processing = false;
+  bool _keepChange = false; // pelanggan tidak ambil kembalian (uang lebih masuk kas)
 
   @override
   void dispose() {
@@ -591,6 +600,7 @@ class _PaymentSheetState extends State<_PaymentSheet> {
         'payment_method': _method,
         'cash_amount': cash,
         'discount_total': cart.discountValue,
+        'keep_change': _method == 'cash' && _keepChange && cash > cart.grandTotal,
       });
       final trx = Map<String, dynamic>.from(res['transaction']);
       cart.clear();
@@ -725,7 +735,11 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                 child: Column(
                   children: [
                     Text(
-                      cash <= 0 ? 'Kembalian' : change < 0 ? 'Uang kurang' : 'Kembalian',
+                      cash <= 0
+                          ? 'Kembalian'
+                          : change < 0
+                              ? 'Uang kurang'
+                              : (_keepChange ? 'Uang lebih (masuk kas)' : 'Kembalian'),
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         color: change < 0 && cash > 0 ? AppColors.danger : AppColors.muted,
@@ -747,6 +761,20 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                   ],
                 ),
               ),
+              if (change > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    value: _keepChange,
+                    onChanged: (v) => setState(() => _keepChange = v),
+                    title: const Text('Pelanggan tidak ambil kembalian',
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+                    subtitle: const Text('Uang lebih dicatat sebagai pemasukan (bukan kembalian)',
+                        style: TextStyle(fontSize: 11.5, color: AppColors.muted)),
+                  ),
+                ),
             ],
             const SizedBox(height: 20),
             FilledButton(
@@ -779,6 +807,8 @@ void _showSuccess(BuildContext context, Map<String, dynamic> trx) {
           Text(rupiah(toDouble(trx['grand_total'])), style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: AppColors.primary)),
           if (toDouble(trx['change_amount']) > 0)
             Text('Kembalian: ${rupiah(toDouble(trx['change_amount']))}', style: const TextStyle(fontWeight: FontWeight.w600)),
+          if (toDouble(trx['overpay_amount']) > 0)
+            Text('Uang lebih (masuk kas): ${rupiah(toDouble(trx['overpay_amount']))}', style: const TextStyle(fontWeight: FontWeight.w600)),
         ],
       ),
       actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Selesai'))],

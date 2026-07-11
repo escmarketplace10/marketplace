@@ -333,6 +333,16 @@ export async function initializeSchema() {
     ALTER TABLE employees ADD COLUMN IF NOT EXISTS permissions JSONB;
     -- Sub-admin login pakai email+password, bukan PIN — PIN jadi boleh kosong.
     ALTER TABLE employees ALTER COLUMN pin DROP NOT NULL;
+
+    -- Pisah stok gudang vs kasir: 'stock' = stok gudang, 'cashier_stock' = stok
+    -- kasir. Admin/stocking pindahkan (transfer) stok gudang ke kasir; kasir
+    -- hanya jual & opname dari stok kasir.
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS cashier_stock NUMERIC DEFAULT 0;
+    -- Pisahkan pergerakan stok gudang vs kasir di ledger untuk tutup buku.
+    ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS scope TEXT DEFAULT 'warehouse';
+    -- Uang lebih yang tidak diambil pelanggan (tip/donasi/pembulatan). Dicatat
+    -- terpisah dari change_amount (kembalian) supaya bisa direkap.
+    ALTER TABLE transactions ADD COLUMN IF NOT EXISTS overpay_amount NUMERIC DEFAULT 0;
   `);
 
   // Ensure default admin exists

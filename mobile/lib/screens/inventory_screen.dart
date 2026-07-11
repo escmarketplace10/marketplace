@@ -80,6 +80,37 @@ class _InventoryScreenState extends State<InventoryScreen> {
     }
   }
 
+  Future<void> _transfer(dynamic product) async {
+    final qtyCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Keluarkan ke Kasir — ${product['name']}'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('Stok gudang: ${formatStock(toDouble(product['stock']), product['unit']?.toString())} ${product['unit'] ?? ''}'),
+          Text('Stok kasir: ${formatStock(toDouble(product['cashier_stock']), product['unit']?.toString())} ${product['unit'] ?? ''}'),
+          const SizedBox(height: 12),
+          TextField(controller: qtyCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Jumlah dipindahkan')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Pindahkan')),
+        ],
+      ),
+    );
+    if (ok == true) {
+      final qty = double.tryParse(qtyCtrl.text) ?? 0;
+      if (qty <= 0) return;
+      try {
+        await Api.transferStock(product['id'].toString(), qty);
+        if (mounted) showSnack(context, 'Stok dipindahkan ke kasir.');
+        _load();
+      } catch (e) {
+        if (mounted) showSnack(context, e.toString(), error: true);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -121,17 +152,28 @@ class _InventoryScreenState extends State<InventoryScreen> {
                             final p = _filtered[i];
                             final stock = toDouble(p['stock']);
                             final low = stock <= toDouble(p['min_stock']);
+                            final unit = p['unit']?.toString();
                             return Card(
                               child: ListTile(
                                 title: Text(p['name'].toString(), style: const TextStyle(fontWeight: FontWeight.w700)),
-                                subtitle: Text('${p['category_name'] ?? ''} · min ${formatStock(toDouble(p['min_stock']), p['unit']?.toString())}'),
-                                trailing: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                subtitle: Text('Kasir: ${formatStock(toDouble(p['cashier_stock']), unit)} ${p['unit'] ?? ''} · min ${formatStock(toDouble(p['min_stock']), unit)}'),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Text('${formatStock(stock, p['unit']?.toString())} ${p['unit'] ?? ''}',
-                                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: low ? AppColors.danger : AppColors.ink)),
-                                    if (low) const Text('menipis', style: TextStyle(color: AppColors.danger, fontSize: 11)),
+                                    Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        Text('${formatStock(stock, unit)} ${p['unit'] ?? ''}',
+                                            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: low ? AppColors.danger : AppColors.ink)),
+                                        const Text('gudang', style: TextStyle(color: AppColors.muted, fontSize: 10)),
+                                      ],
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.local_shipping_outlined),
+                                      tooltip: 'Keluarkan ke kasir',
+                                      onPressed: () => _transfer(p),
+                                    ),
                                   ],
                                 ),
                                 onTap: () => _adjust(p),

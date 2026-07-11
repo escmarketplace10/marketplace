@@ -5,6 +5,7 @@ import '../state/session.dart';
 import 'pos_screen.dart';
 import 'menu_screen.dart';
 import 'inventory_screen.dart';
+import 'cashier_opname_screen.dart';
 import 'transactions_screen.dart';
 import 'customers_screen.dart';
 import 'dashboard_screen.dart';
@@ -38,6 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _NavItem('menu', 'Menu', Icons.restaurant_menu, () => const MenuScreen()),
     _NavItem('inventory', 'Stok', Icons.inventory_2_rounded, () => const InventoryScreen()),
     _NavItem('transactions', 'Transaksi', Icons.receipt_long, () => const TransactionsScreen()),
+    _NavItem('stock_check', 'Cek Stok', Icons.fact_check_rounded, () => const CashierOpnameScreen()),
     _NavItem('customers', 'Pelanggan', Icons.groups_rounded, () => const CustomersScreen()),
     _NavItem('reports', 'Laporan', Icons.analytics_rounded, () => const ReportsScreen()),
     _NavItem('employees', 'Karyawan', Icons.badge_rounded, () => const EmployeesScreen()),
