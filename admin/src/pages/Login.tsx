@@ -30,7 +30,7 @@ export default function Login() {
     <div className="login-container">
       <div className="login-box">
         <div className="login-logo">
-          <div className="login-logo-icon">☕</div>
+          <img src="/logo.png" alt="Kantinku" width={64} height={64} style={{ borderRadius: 14, display: 'block' }} />
         </div>
         <h1>Kantinku</h1>
         <p className="login-subtitle">Panel Admin — kelola toko Anda</p>
