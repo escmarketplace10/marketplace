@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ChangeEvent } from 'react';
 import axios from 'axios';
-import { Search, Plus, Pencil, Trash2, UtensilsCrossed, FolderOpen, X } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, UtensilsCrossed, FolderOpen, X, ImagePlus } from 'lucide-react';
 import { toast, confirmDialog } from '../ui/feedback';
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n);
@@ -17,6 +17,33 @@ const fmtStock = (n: number, unit?: string) => {
 };
 
 interface Category { id: string; name: string; icon: string; product_count: number; }
+
+/** Resize foto di browser (maks 800px) lalu kembalikan data URL JPEG agar upload ringan. */
+const resizeImage = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Gagal membaca file'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('File bukan gambar yang valid'));
+      img.onload = () => {
+        const MAX = 800;
+        let { width, height } = img;
+        if (width > MAX || height > MAX) {
+          const scale = MAX / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
 
 export default function Products() {
   const [products, setProducts] = useState<any[]>([]);
@@ -74,7 +101,21 @@ export default function Products() {
       barcode: existing?.barcode || '',
       consignor_id: existing?.consignor_id || '',
       commission_percent: existing?.commission_percent ?? '',
+      image: existing?.image || '',
+      image_base64: '',
     });
+  };
+
+  const pickImage = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const dataUrl = await resizeImage(file);
+      setModal((m: any) => ({ ...m, image_base64: dataUrl }));
+    } catch {
+      toast('Gagal memproses foto. Pastikan file berupa gambar.', 'error');
+    }
   };
 
   const saveProduct = async () => {
@@ -98,6 +139,7 @@ export default function Products() {
         barcode: modal.barcode || null,
         consignor_id: modal.consignor_id || null,
         commission_percent: modal.consignor_id ? (Number(modal.commission_percent) || 0) : null,
+        ...(modal.image_base64 ? { image_base64: modal.image_base64 } : {}),
       };
       if (modal.id) {
         await axios.put(`/api/products/${modal.id}`, data, { headers });
@@ -335,6 +377,29 @@ export default function Products() {
               <button className="modal-close" onClick={() => setModal(null)}><X size={16} /></button>
             </div>
             <div className="modal-body">
+              <div className="form-group">
+                <label className="form-label">Foto Produk</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  {(modal.image_base64 || modal.image) ? (
+                    <img src={modal.image_base64 || modal.image} alt="" style={{ width: 72, height: 72, borderRadius: 12, objectFit: 'cover', border: '1px solid var(--border-light)' }} />
+                  ) : (
+                    <div style={{ width: 72, height: 72, borderRadius: 12, background: 'var(--primary-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>🍽️</div>
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer' }}>
+                      <ImagePlus size={13} /> {(modal.image_base64 || modal.image) ? 'Ganti Foto' : 'Pilih Foto'}
+                      <input type="file" accept="image/*" style={{ display: 'none' }} onChange={pickImage} />
+                    </label>
+                    {modal.image_base64 && (
+                      <button className="btn btn-secondary btn-sm" onClick={() => setModal((m: any) => ({ ...m, image_base64: '' }))}>
+                        <X size={13} /> Batalkan Foto Baru
+                      </button>
+                    )}
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Opsional. Otomatis diperkecil sebelum diunggah.</span>
+                  </div>
+                </div>
+              </div>
+
               <div className="form-group">
                 <label className="form-label">Nama Produk *</label>
                 <input className="form-input" value={modal.name} onChange={e => setModal((m: any) => ({ ...m, name: e.target.value }))} placeholder="Contoh: Nasi Goreng Spesial" />
