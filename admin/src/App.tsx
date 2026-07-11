@@ -13,6 +13,7 @@ import Purchases from './pages/Purchases';
 import Expenses from './pages/Expenses';
 import Consignors from './pages/Consignors';
 import Employees from './pages/Employees';
+import Bantuan from './pages/Bantuan';
 import './App.css';
 import axios from 'axios';
 import { FeedbackHost } from './ui/feedback';
@@ -66,6 +67,7 @@ function App() {
           <Route path="expenses" element={<Expenses />} />
           <Route path="consignors" element={<Consignors />} />
           <Route path="employees" element={<Employees />} />
+          <Route path="bantuan" element={<Bantuan />} />
           <Route path="*" element={<div style={{ padding: '40px', textAlign: 'center' }}><h2>404 — Halaman tidak ditemukan</h2></div>} />
         </Route>
       </Routes>
