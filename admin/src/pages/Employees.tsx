@@ -10,6 +10,10 @@ export default function Employees() {
   const [modal, setModal] = useState<any>(null);
   const [form, setForm] = useState({ name: '', phone: '', role: 'cashier', pin: '', commission_rate: 0, is_active: 1 });
   const [submitting, setSubmitting] = useState(false);
+  // Modal ringkas khusus reset PIN (tanpa buka form edit lengkap).
+  const [pinModal, setPinModal] = useState<any>(null);
+  const [newPin, setNewPin] = useState('');
+  const [pinSaving, setPinSaving] = useState(false);
 
   const token = localStorage.getItem('admin_token');
   const headers = { Authorization: `Bearer ${token}` };
@@ -55,6 +59,20 @@ export default function Employees() {
       load();
     } catch (e: any) { toast(e.response?.data?.error || 'Gagal menyimpan data karyawan', 'error'); }
     finally { setSubmitting(false); }
+  };
+
+  const openResetPin = (e: any) => { setNewPin(''); setPinModal(e); };
+
+  const submitPin = async () => {
+    if (newPin.length < 4 || newPin.length > 6) { toast('PIN harus 4-6 digit angka', 'error'); return; }
+    setPinSaving(true);
+    try {
+      // Kirim hanya field pin; kolom lain di-COALESCE server jadi tidak berubah.
+      await axios.put(`/api/employees/${pinModal.id}`, { pin: newPin }, { headers });
+      toast(`PIN ${pinModal.name} berhasil direset.`, 'success');
+      setPinModal(null);
+    } catch (e: any) { toast(e.response?.data?.error || 'Gagal reset PIN', 'error'); }
+    finally { setPinSaving(false); }
   };
 
   const handleDelete = async (id: string) => {
@@ -156,7 +174,8 @@ export default function Employees() {
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <div style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
-                        <button className="btn btn-secondary btn-sm" onClick={() => openEdit(e)}><Edit2 size={13} /></button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => openResetPin(e)} title="Reset PIN"><KeyRound size={13} /></button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => openEdit(e)} title="Edit"><Edit2 size={13} /></button>
                         {e.is_active ? (
                           <button className="btn btn-danger btn-sm" onClick={() => handleDelete(e.id)} title="Nonaktifkan Karyawan"><Trash2 size={13} /></button>
                         ) : null}
@@ -269,6 +288,44 @@ export default function Employees() {
               <button className="btn btn-secondary" onClick={() => setModal(null)}>Batal</button>
               <button className="btn btn-primary" onClick={handleSave} disabled={submitting}>
                 {submitting ? 'Menyimpan...' : '✓ Simpan Data'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal ringkas: reset PIN */}
+      {pinModal && (
+        <div className="modal-overlay" onClick={() => setPinModal(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 380 }}>
+            <div className="modal-header">
+              <div className="modal-title"><KeyRound size={16} style={{ marginRight: 6, verticalAlign: -2 }} /> Reset PIN</div>
+              <button className="modal-close" onClick={() => setPinModal(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ fontSize: 13.5, color: 'var(--text-secondary)', marginBottom: 14 }}>
+                PIN baru untuk <strong>{pinModal.name}</strong>. Karyawan langsung pakai PIN ini untuk login.
+              </div>
+              <div className="form-group">
+                <label className="form-label">PIN Baru (4-6 digit)</label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  inputMode="numeric"
+                  autoFocus
+                  className="form-input"
+                  style={{ fontSize: 18, letterSpacing: 8, fontWeight: 700, textAlign: 'center' }}
+                  placeholder="••••••"
+                  value={newPin}
+                  onChange={e => setNewPin(e.target.value.replace(/\D/g, ''))}
+                  onKeyDown={e => { if (e.key === 'Enter') submitPin(); }}
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setPinModal(null)}>Batal</button>
+              <button className="btn btn-primary" onClick={submitPin} disabled={pinSaving}>
+                {pinSaving ? 'Menyimpan…' : 'Simpan PIN Baru'}
               </button>
             </div>
           </div>
