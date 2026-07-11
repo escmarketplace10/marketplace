@@ -5,7 +5,7 @@ import {
   LayoutDashboard, TrendingUp, Package, Truck, ShoppingCart,
   Wallet, Users, LogOut, UserCheck, KeyRound, X, Receipt, History, UtensilsCrossed
 } from 'lucide-react';
-import { toast, confirmDialog } from '../ui/feedback';
+import { toast, confirmDialog, errText } from '../ui/feedback';
 
 const navItems = [
   {
@@ -64,7 +64,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
       localStorage.removeItem('admin_user');
       navigate('/login');
     } catch (e: any) {
-      setError(e?.response?.data?.error || 'Gagal mengganti password.');
+      setError(errText(e?.response?.data?.error ?? e?.response?.data, 'Gagal mengganti password.'));
     } finally {
       setSaving(false);
     }

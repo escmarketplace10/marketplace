@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { errText } from '../ui/feedback';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -19,7 +20,7 @@ export default function Login() {
       localStorage.setItem('admin_user', JSON.stringify(res.data.user));
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Terjadi kesalahan pada server');
+      setError(errText(err.response?.data?.error ?? err.response?.data, 'Terjadi kesalahan pada server'));
     } finally {
       setLoading(false);
     }

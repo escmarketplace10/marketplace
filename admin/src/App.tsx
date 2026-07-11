@@ -16,6 +16,7 @@ import Employees from './pages/Employees';
 import './App.css';
 import axios from 'axios';
 import { FeedbackHost } from './ui/feedback';
+import { ErrorBoundary } from './ui/ErrorBoundary';
 
 axios.defaults.baseURL = import.meta.env.VITE_API_URL || '';
 
@@ -44,6 +45,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
+    <ErrorBoundary>
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
@@ -69,6 +71,7 @@ function App() {
       </Routes>
       <FeedbackHost />
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 

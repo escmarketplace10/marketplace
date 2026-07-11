@@ -31,9 +31,28 @@ let uid = 1;
 
 function emit() { toastListeners.forEach((l) => l([...toasts])); }
 
-export function toast(message: string, type: ToastType = 'info', durationMs = 4000) {
+/**
+ * Ubah apa pun jadi teks aman untuk dirender React.
+ * Backend/axios kadang mengembalikan error berupa objek ({ code, message, ... }),
+ * bukan string. Merender objek sebagai child React memicu error #31 (layar blank).
+ * Pakai ini di mana pun pesan error API ditampilkan.
+ */
+export function errText(value: unknown, fallback = 'Terjadi kesalahan.'): string {
+  if (value == null) return fallback;
+  if (typeof value === 'string') return value || fallback;
+  if (typeof value === 'object') {
+    const o = value as any;
+    return (typeof o.error === 'string' && o.error)
+      || (typeof o.message === 'string' && o.message)
+      || (typeof o.msg === 'string' && o.msg)
+      || fallback;
+  }
+  return String(value);
+}
+
+export function toast(message: unknown, type: ToastType = 'info', durationMs = 4000) {
   const id = uid++;
-  toasts.push({ id, message, type });
+  toasts.push({ id, message: errText(message, 'Terjadi kesalahan.'), type });
   emit();
   setTimeout(() => { toasts = toasts.filter((t) => t.id !== id); emit(); }, durationMs);
 }
