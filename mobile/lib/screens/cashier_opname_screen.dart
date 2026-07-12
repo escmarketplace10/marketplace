@@ -135,11 +135,14 @@ class _CashierOpnameScreenState extends State<CashierOpnameScreen> {
                                           Text('Stok app: ${formatStock(appStock, unit)} $unit',
                                               style: const TextStyle(fontSize: 12, color: AppColors.muted)),
                                           if (diff != null && diff != 0)
-                                            Text('Selisih: ${diff > 0 ? '+' : ''}${formatStock(diff, unit)} $unit',
+                                            Text(
+                                                diff < 0
+                                                    ? 'Balik ke gudang: ${formatStock(-diff, unit)} $unit'
+                                                    : 'Selisih: +${formatStock(diff, unit)} $unit',
                                                 style: TextStyle(
                                                     fontSize: 12,
                                                     fontWeight: FontWeight.w700,
-                                                    color: diff < 0 ? AppColors.danger : AppColors.success)),
+                                                    color: diff < 0 ? AppColors.primary : AppColors.success)),
                                         ],
                                       ),
                                     ),

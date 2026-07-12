@@ -183,14 +183,33 @@ router.post('/cashier-opname', requireCashierStockAccess, async (req: Request, r
       const oldStock = Number(product.cashier_stock);
       const diff = Number(item.actual_stock) - oldStock;
       if (diff !== 0) {
-        const type = diff > 0 ? 'in' : 'out';
         const absDiff = Math.abs(diff);
 
-        await tx.run('UPDATE products SET cashier_stock = ?, updated_at = now() WHERE id = ?', [item.actual_stock, item.product_id]);
-        await tx.run(`
-          INSERT INTO inventory_movements (id, product_id, type, quantity, reference_type, scope, notes, created_by)
-          VALUES (?, ?, ?, ?, 'opname', 'cashier', ?, ?)
-        `, [uuid(), item.product_id, type, absDiff, `Opname kasir: app ${oldStock} -> fisik ${item.actual_stock}`, actor]);
+        if (diff < 0) {
+          // Stok kasir berkurang -> sisa dikembalikan ke gudang (closing).
+          // cashier_stock turun, stock gudang naik senilai selisih.
+          const refId = uuid();
+          await tx.run(
+            'UPDATE products SET cashier_stock = ?, stock = stock + ?, updated_at = now() WHERE id = ?',
+            [item.actual_stock, absDiff, item.product_id]
+          );
+          // Dua baris ledger dengan reference_id sama: keluar dari kasir, masuk ke gudang.
+          await tx.run(`
+            INSERT INTO inventory_movements (id, product_id, type, quantity, reference_type, reference_id, scope, notes, created_by)
+            VALUES (?, ?, 'out', ?, 'opname', ?, 'cashier', ?, ?)
+          `, [uuid(), item.product_id, absDiff, refId, `Opname kasir: app ${oldStock} -> fisik ${item.actual_stock}, sisa balik ke gudang`, actor]);
+          await tx.run(`
+            INSERT INTO inventory_movements (id, product_id, type, quantity, reference_type, reference_id, scope, notes, created_by)
+            VALUES (?, ?, 'in', ?, 'opname', ?, 'warehouse', ?, ?)
+          `, [uuid(), item.product_id, absDiff, refId, `Terima balik dari stok kasir (closing)`, actor]);
+        } else {
+          // Stok kasir bertambah (fisik > app) -> koreksi naik, tidak menyentuh gudang.
+          await tx.run('UPDATE products SET cashier_stock = ?, updated_at = now() WHERE id = ?', [item.actual_stock, item.product_id]);
+          await tx.run(`
+            INSERT INTO inventory_movements (id, product_id, type, quantity, reference_type, scope, notes, created_by)
+            VALUES (?, ?, 'in', ?, 'opname', 'cashier', ?, ?)
+          `, [uuid(), item.product_id, absDiff, `Opname kasir: app ${oldStock} -> fisik ${item.actual_stock}`, actor]);
+        }
 
         results.push({ product_id: item.product_id, name: product.name, old_stock: oldStock, new_stock: Number(item.actual_stock), diff });
       }

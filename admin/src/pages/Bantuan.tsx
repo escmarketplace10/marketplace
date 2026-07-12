@@ -76,7 +76,7 @@ const SECTIONS: Section[] = [
     items: [
       { term: 'Jual diblokir bila stok kasir habis', desc: 'Kasir tidak bisa menjual produk yang Stok Kasir-nya 0. Muncul pesan minta petugas stok mengeluarkan dari gudang dulu. Mencegah stok minus.' },
       { term: 'Menu "Cek Stok" (Opname Kasir)', desc: 'Kasir menghitung barang fisik di lapak, lalu input jumlah sebenarnya. Aplikasi menampilkan selisih terhadap catatan (stok app) dan menyimpannya. Untuk tutup buku & cocokkan stok tiap hari.' },
-      { term: 'Selisih', desc: 'Beda antara stok app dan stok fisik. Minus = barang kurang (mis. terselip/rusak/salah catat), plus = lebih. Semua tersimpan di Riwayat Stok sebagai Opname Kasir.' },
+      { term: 'Selisih (minus = balik ke gudang)', desc: 'Beda antara stok app dan stok fisik. Minus = sisa jualan yang dikembalikan ke Stok Gudang (mis. saat closing) — Stok Gudang otomatis bertambah senilai selisih. Plus = koreksi tambah di kasir. Semua tersimpan di Riwayat Stok sebagai Opname Kasir.' },
     ],
   },
   {
