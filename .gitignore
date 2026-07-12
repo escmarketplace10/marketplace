@@ -7,6 +7,8 @@ build/
 *.db-shm
 backend/data/uploads/
 .env
+.env.*
+VERCEL_ENV_SETUP.md
 .DS_Store
 *.jks
 key.properties
