@@ -111,7 +111,7 @@ class _MenuScreenState extends State<MenuScreen> {
                                   ),
                                   title: Text(p['name'].toString(), style: const TextStyle(fontWeight: FontWeight.w700)),
                                   subtitle: Text('${rupiah(toDouble(p['price']))}'
-                                      '${toInt(p['is_track_stock']) == 1 ? ' · stok ${formatStock(toDouble(p['stock']), p['unit']?.toString())} ${p['unit'] ?? ''}' : ''}'
+                                      '${toInt(p['is_track_stock']) == 1 ? ' · stok kasir ${formatStock(toDouble(p['cashier_stock']), p['unit']?.toString())} ${p['unit'] ?? ''}' : ''}'
                                       '${p['consignor_id'] != null ? ' · titipan ${p['consignor_name'] ?? ''}' : ''}'),
                                   trailing: p.containsKey('cost_price') && toDouble(p['cost_price']) > 0
                                       ? Text('Modal ${rupiah(toDouble(p['cost_price']))}',
