@@ -20,11 +20,10 @@ export function requireStockAccess(req: Request, res: Response, next: NextFuncti
 }
 
 /**
- * Opname stok kasir boleh dilakukan kasir sendiri (mencocokkan stok app vs
- * fisik di lapak kasir) — selain petugas stok & admin. Beda dari
- * requireStockAccess yang menolak kasir.
+ * Opname stok kasir dilakukan Petugas Stok & Admin (mencocokkan stok app vs
+ * fisik di lapak kasir). Kasir tidak lagi diberi akses opname.
  */
-const CASHIER_STOCK_ROLES = new Set(['cashier', 'stocking', 'admin', 'owner', 'super_admin']);
+const CASHIER_STOCK_ROLES = new Set(['stocking', 'admin', 'owner', 'super_admin']);
 
 export function requireCashierStockAccess(req: Request, res: Response, next: NextFunction) {
   const auth = (req as any).auth;

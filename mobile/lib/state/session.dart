@@ -22,15 +22,14 @@ class Session extends ChangeNotifier {
       case 'super_admin':
       case 'owner':
         return true;
-      // Petugas Stok: kelola menu, stok, supplier, pembelian, penitip.
+      // Petugas Stok: kelola menu, stok gudang, & opname stok kasir.
+      // Supplier, penitip, & pembelian dikelola Admin lewat Website.
       case 'stocking':
-        return const {'menu', 'inventory', 'suppliers', 'purchase_orders', 'consignors'}
-            .contains(area);
-      // Kasir: transaksi, pelanggan, & cek/opname stok kasir sendiri —
-      // TIDAK boleh mengatur stok gudang.
+        return const {'menu', 'inventory', 'stock_check'}.contains(area);
+      // Kasir: transaksi & pelanggan. Opname/kelola stok = tugas Petugas Stok.
       case 'cashier':
       default:
-        return const {'pos', 'transactions', 'customers', 'stock_check'}.contains(area);
+        return const {'pos', 'transactions', 'customers'}.contains(area);
     }
   }
 
