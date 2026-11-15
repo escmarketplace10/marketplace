@@ -17,4 +17,7 @@ Kantinku.apk
 .idea/
 .vscode/
 .vercel/
+.tools/
 *.log
+
+.vercel

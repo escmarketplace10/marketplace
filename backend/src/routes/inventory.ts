@@ -4,6 +4,8 @@ import { v4 as uuid } from 'uuid';
 import { requireStockAccess, requireCashierStockAccess } from '../middleware/roleGuard';
 import { getActorLabel } from '../middleware/actor';
 import { requirePerm } from '../middleware/permissions';
+import { validate } from '../middleware/validate';
+import { adjustStockSchema, transferStockSchema } from '../lib/schemas';
 
 const router = Router();
 
@@ -45,7 +47,7 @@ router.get('/movements', requirePerm('stock-ledger'), async (req: Request, res: 
 });
 
 // POST /api/inventory/adjust - Manual stock adjustment (bukan untuk kasir)
-router.post('/adjust', requireStockAccess, requirePerm('stocking'), async (req: Request, res: Response) => {
+router.post('/adjust', requireStockAccess, requirePerm('stocking'), validate(adjustStockSchema), async (req: Request, res: Response) => {
   const db = getDb();
   const { product_id, quantity, type, notes, reason } = req.body;
 
@@ -130,7 +132,7 @@ router.post('/stock-opname', requireStockAccess, requirePerm('stocking'), async 
 });
 
 // POST /api/inventory/transfer - Pindahkan stok gudang -> stok kasir (admin/stocking)
-router.post('/transfer', requireStockAccess, requirePerm('stocking'), async (req: Request, res: Response) => {
+router.post('/transfer', requireStockAccess, requirePerm('stocking'), validate(transferStockSchema), async (req: Request, res: Response) => {
   const db = getDb();
   const { product_id, quantity } = req.body;
 

@@ -18,7 +18,9 @@ export function getDb() {
     }
     pool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      ssl: process.env.DATABASE_URL?.includes('supabase') ? { rejectUnauthorized: false } : undefined
+      ssl: process.env.DATABASE_URL?.includes('supabase')
+        ? { rejectUnauthorized: true }
+        : undefined
     });
   }
 
@@ -343,6 +345,10 @@ export async function initializeSchema() {
     -- Uang lebih yang tidak diambil pelanggan (tip/donasi/pembulatan). Dicatat
     -- terpisah dari change_amount (kembalian) supaya bisa direkap.
     ALTER TABLE transactions ADD COLUMN IF NOT EXISTS overpay_amount NUMERIC DEFAULT 0;
+    ALTER TABLE transactions ADD COLUMN IF NOT EXISTS transaction_name TEXT;
+    ALTER TABLE transactions ADD COLUMN IF NOT EXISTS paid_by TEXT;
+    ALTER TABLE transactions ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP;
+    ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS delivered_quantity NUMERIC DEFAULT 0;
   `);
 
   // Ensure default admin exists
@@ -353,7 +359,7 @@ export async function initializeSchema() {
       const crypto = require('crypto');
       const email = process.env.DEFAULT_ADMIN_EMAIL || 'admin@kantinku.com';
       // Password default TIDAK boleh hardcoded. Ambil dari env; kalau kosong,
-      // buat acak dan cetak SEKALI supaya wajib diganti admin.
+      // buat acak dan cetak SEKALI ke stderr supaya wajib diganti admin.
       const envPass = process.env.DEFAULT_ADMIN_PASSWORD;
       const password = envPass || crypto.randomBytes(12).toString('base64url');
       const passwordHash = await bcrypt.hash(password, 10);
@@ -364,11 +370,10 @@ export async function initializeSchema() {
       if (envPass) {
         console.log(`Default admin created: ${email} (password dari DEFAULT_ADMIN_PASSWORD)`);
       } else {
-        console.log('=================================================================');
-        console.log(`Default admin created: ${email}`);
-        console.log(`GENERATED PASSWORD (login lalu SEGERA ganti): ${password}`);
-        console.log('Set DEFAULT_ADMIN_PASSWORD di env untuk menghindari password acak.');
-        console.log('=================================================================');
+        console.log('Default admin created. Set DEFAULT_ADMIN_PASSWORD di env.');
+        // Password dicetak ke stderr SEKALI — jangan sampai masuk log biasa
+        process.stderr.write(`[INIT] Admin: ${email} | Password: ${password}\n`);
+        process.stderr.write('[INIT] SEGERA ganti password setelah login pertama.\n');
       }
     }
   } catch (e) {

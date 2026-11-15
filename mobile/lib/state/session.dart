@@ -13,7 +13,7 @@ class Session extends ChangeNotifier {
   String? get employeeId => employee?['id']?.toString();
 
   /// RBAC sederhana: peran apa saja yang boleh mengakses sebuah menu.
-  /// Aplikasi hanya untuk 2 peran: Kasir & Petugas Stok. Admin lewat Website.
+  /// Aplikasi untuk Kasir, Waiter, dan Petugas Stok. Admin lewat Website.
   bool can(String area) {
     switch (role) {
       // Peran admin lama (kalau ada) tetap lihat semua — tapi login admin
@@ -28,8 +28,11 @@ class Session extends ChangeNotifier {
         return const {'menu', 'inventory', 'stock_check'}.contains(area);
       // Kasir: transaksi & pelanggan. Opname/kelola stok = tugas Petugas Stok.
       case 'cashier':
-      default:
         return const {'pos', 'transactions', 'customers'}.contains(area);
+      case 'waiter':
+        return const {'pos', 'transactions'}.contains(area);
+      default:
+        return false;
     }
   }
 

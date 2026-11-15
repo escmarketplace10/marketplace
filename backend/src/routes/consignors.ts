@@ -17,10 +17,10 @@ async function unsettledSummary(db: any, consignorId: string, until?: string) {
     FROM transaction_items ti
     JOIN transactions t ON ti.transaction_id = t.id
     JOIN products p ON ti.product_id = p.id
-    WHERE p.consignor_id = ? AND t.is_void = 0 AND t.created_at > ?
+    WHERE p.consignor_id = ? AND t.is_void = 0 AND t.payment_status = 'completed' AND COALESCE(t.paid_at, t.created_at) > ?
   `;
   const params: any[] = [consignorId, since];
-  if (until) { query += ' AND t.created_at <= ?'; params.push(until); }
+  if (until) { query += ' AND COALESCE(t.paid_at, t.created_at) <= ?'; params.push(until); }
 
   const row = await db.get(query, [...params]) as any;
   const total_sales = row.total_sales || 0;
@@ -56,7 +56,7 @@ router.get('/:id/report', async (req: Request, res: Response) => {
   const summary = await unsettledSummary(db, req.params.id);
 
   const items = await db.all(`
-    SELECT t.receipt_number, t.created_at,
+    SELECT t.receipt_number, COALESCE(t.paid_at, t.created_at) as created_at,
            ti.product_name, ti.quantity, ti.unit_price, ti.total_price,
            p.commission_percent,
            (ti.total_price * p.commission_percent / 100.0) as commission_amount,
@@ -64,8 +64,8 @@ router.get('/:id/report', async (req: Request, res: Response) => {
     FROM transaction_items ti
     JOIN transactions t ON ti.transaction_id = t.id
     JOIN products p ON ti.product_id = p.id
-    WHERE p.consignor_id = ? AND t.is_void = 0 AND t.created_at > ?
-    ORDER BY t.created_at ASC
+    WHERE p.consignor_id = ? AND t.is_void = 0 AND t.payment_status = 'completed' AND COALESCE(t.paid_at, t.created_at) > ?
+    ORDER BY COALESCE(t.paid_at, t.created_at) ASC
   `, [req.params.id, summary.since]);
 
   return res.json({ ...summary, items });

@@ -1,11 +1,13 @@
 import 'express-async-errors'; // error di handler async otomatis masuk error-middleware
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import morgan from 'morgan';
 import path from 'path';
 import fs from 'fs';
 import { getDb, closeDb, initializeSchema } from './database';
 import { requireAuth } from './middleware/requireAuth';
+import { restrictWaiter } from './middleware/waiterAccess';
 import { requireAdminOnly } from './middleware/roleGuard';
 import { requirePerm, requireSuperAdmin } from './middleware/permissions';
 
@@ -29,18 +31,33 @@ import adminRoutes from './routes/admin';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// CORS: batasi ke origin yang di-set di env (comma-separated). Kosong = izinkan semua (dev).
+// Security headers (X-Content-Type-Options, X-Frame-Options, HSTS, dll)
+app.use(helmet());
+
+// CORS: batasi ke origin yang di-set di env (comma-separated).
+// Di production WAJIB di-set — tanpa itu, semua origin ditolak (fail-closed).
+const isProd = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
   .split(',')
   .map((o) => o.trim())
   .filter(Boolean);
+
+if (isProd && !allowedOrigins.length) {
+  console.warn('WARNING: ALLOWED_ORIGINS belum di-set di production! CORS akan menolak semua cross-origin request.');
+}
+
 app.use(
   cors({
-    origin: allowedOrigins.length ? allowedOrigins : true,
+    origin: allowedOrigins.length
+      ? allowedOrigins
+      : isProd
+        ? false  // Tolak semua cross-origin di production jika tidak di-set
+        : true,  // Izinkan semua di development
+    credentials: true,
   })
 );
-// 8mb menampung foto produk base64 (~33% inflasi) tapi tetap membatasi payload.
-app.use(express.json({ limit: '8mb' }));
+// Body parser: limit default kecil untuk keamanan. Endpoint upload gambar pakai limit sendiri.
+app.use(express.json({ limit: '1mb' }));
 app.use(morgan('dev'));
 
 // Ensure database is initialized before handling requests
@@ -68,6 +85,7 @@ app.use(async (_req, res, next) => {
 // Semua endpoint /api/* wajib login (kecuali /health & endpoint login) —
 // API ini publik di internet, tanpa ini siapa pun bisa baca/ubah data toko.
 app.use(requireAuth);
+app.use(restrictWaiter);
 
 // Routes
 // Catatan hak akses: requirePerm hanya membatasi sub-admin (token admin
@@ -99,14 +117,14 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Error handler
+// Error handler — selalu sembunyikan detail internal kecuali explicitly development
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err.stack);
-  // Jangan bocorkan detail internal ke klien di produksi.
-  const isProd = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
+  // Hanya tampilkan error message jika NODE_ENV === 'development' secara eksplisit
+  const isDev = process.env.NODE_ENV === 'development';
   res.status(500).json({
     error: 'Internal Server Error',
-    ...(isProd ? {} : { message: err.message }),
+    ...(isDev ? { message: err.message } : {}),
   });
 });
 

@@ -100,6 +100,10 @@ class Api {
       Map<String, dynamic>.from(await _get('/transactions/$id'));
   static Future<Map<String, dynamic>> createTransaction(Map<String, dynamic> d) async =>
       Map<String, dynamic>.from(await _send('POST', '/transactions', d));
+  static Future<dynamic> markDelivered(String id, String itemId, num quantity) =>
+      _send('PATCH', '/transactions/$id/items/$itemId/delivery', {'delivered_quantity': quantity});
+  static Future<Map<String, dynamic>> payTransaction(String id, Map<String, dynamic> d) async =>
+      Map<String, dynamic>.from(await _send('POST', '/transactions/$id/pay', d));
   static Future<dynamic> voidTransaction(String id, Map<String, dynamic> d) =>
       _send('POST', '/transactions/$id/void', d);
 

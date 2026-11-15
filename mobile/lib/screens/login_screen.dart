@@ -68,7 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 14),
                 const Text('Kantinku', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
-                const Text('Masukkan PIN Kasir / Petugas Stok',
+                const Text('Masukkan PIN Kasir / Waiter / Petugas Stok',
                     style: TextStyle(color: AppColors.muted, fontSize: 14)),
                 const SizedBox(height: 24),
                 // Indikator PIN

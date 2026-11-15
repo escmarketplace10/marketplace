@@ -1,7 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../database';
 import { v4 as uuid } from 'uuid';
-import sha256 from 'sha256';
 import bcrypt from 'bcryptjs';
 import { requireAdminOnly } from '../middleware/roleGuard';
 import { recordAudit } from '../lib/audit';
@@ -49,6 +48,7 @@ router.post('/', requireAdminOnly, async (req: Request, res: Response) => {
   const { name, pin, role, phone, commission_rate, email, password, permissions } = req.body;
   const r = role || 'cashier';
   if (!name) return res.status(400).json({ error: 'Nama wajib diisi' });
+  if (!['cashier', 'waiter', 'stocking', 'admin'].includes(r)) return res.status(400).json({ error: 'Peran tidak valid.' });
 
   const id = uuid();
 
@@ -70,8 +70,8 @@ router.post('/', requireAdminOnly, async (req: Request, res: Response) => {
 
   // Kasir / Petugas Stok: pakai PIN.
   if (!pin) return res.status(400).json({ error: 'PIN wajib diisi' });
-  if (pin.length < 4 || pin.length > 6) return res.status(400).json({ error: 'PIN harus 4-6 digit' });
-  const hashedPin = sha256(pin);
+  if (!/^\d{4,6}$/.test(pin)) return res.status(400).json({ error: 'PIN harus 4-6 digit angka' });
+  const hashedPin = await bcrypt.hash(pin, 10);
   await db.run('INSERT INTO employees (id, name, pin, role, phone, commission_rate) VALUES (?, ?, ?, ?, ?, ?)', [id, name, hashedPin, r, phone || null, commission_rate || 0]);
   await recordAudit(req, { action: 'create', entity: 'employee', entity_id: id, summary: `Menambah karyawan "${name}" (${r})` });
   return res.json({ success: true, id });
@@ -85,14 +85,20 @@ router.put('/:id', requireAdminOnly, async (req: Request, res: Response) => {
   if (!emp) return res.status(404).json({ error: 'Employee not found' });
 
   const effectiveRole = role || emp.role;
+  if (role && !['cashier', 'waiter', 'stocking', 'admin'].includes(role)) {
+    return res.status(400).json({ error: 'Peran tidak valid.' });
+  }
   if (email && email !== emp.email && await emailTaken(db, email, req.params.id)) {
     return res.status(400).json({ error: 'Email sudah dipakai akun lain' });
   }
   if (password && String(password).length < 8) {
     return res.status(400).json({ error: 'Password minimal 8 karakter' });
   }
+  if (pin && !/^\d{4,6}$/.test(pin)) {
+    return res.status(400).json({ error: 'PIN harus 4-6 digit angka' });
+  }
 
-  const hashedPin = pin ? sha256(pin) : null;
+  const hashedPin = pin ? await bcrypt.hash(pin, 10) : null;
   const passwordHash = password ? await bcrypt.hash(String(password), 10) : null;
   // permissions hanya relevan untuk role admin; kalau dikirim, timpa.
   const permsJson = permissions !== undefined ? JSON.stringify(cleanPerms(permissions)) : null;

@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import express from 'express';
 import { getDb } from '../database';
 import { v4 as uuid } from 'uuid';
 import { requireStockAccess } from '../middleware/roleGuard';
@@ -6,14 +7,29 @@ import { recordAudit } from '../lib/audit';
 
 const router = Router();
 
+// Limit lebih besar khusus route produk (upload gambar base64 ~8MB)
+const largeBody = express.json({ limit: '8mb' });
+
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL || 'https://fihrcrtkzieqjlwelixa.supabase.co';
-const supabaseKey = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZpaHJjcnRremllcWpsd2VsaXhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1NDMwMDksImV4cCI6MjA5ODExOTAwOX0.q5532z4zO9M-zcEyKLzumjUDK_xOCdT70uldz4553AE';
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error('FATAL: SUPABASE_URL dan SUPABASE_KEY wajib di-set di environment variables.');
+  if (process.env.VERCEL === '1' || process.env.NODE_ENV === 'production') {
+    throw new Error('SUPABASE_URL dan SUPABASE_KEY wajib di-set di production.');
+  }
+}
+
+const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
 /** Simpan gambar base64 ke Supabase Storage, kembalikan public URL. */
 async function saveProductImage(id: string, base64: string): Promise<string | null> {
+  if (!supabase) {
+    console.error('Supabase belum dikonfigurasi. Set SUPABASE_URL & SUPABASE_KEY.');
+    return null;
+  }
   try {
     const m = /^data:image\/(\w+);base64,(.*)$/s.exec(base64);
     const data = m ? m[2] : base64;
@@ -22,7 +38,7 @@ async function saveProductImage(id: string, base64: string): Promise<string | nu
     
     const buffer = Buffer.from(data, 'base64');
     
-    const { data: uploadData, error } = await supabase
+    const { error } = await supabase
       .storage
       .from('uploads')
       .upload(filename, buffer, {
@@ -64,6 +80,14 @@ router.get('/', async (req: Request, res: Response) => {
   query += ' ORDER BY p.name ASC';
 
   const products = await db.all(query, params);
+  if ((req as any).auth?.role === 'waiter' && (req as any).auth?.kind === 'employee') {
+    return res.json(products.map((p: any) => ({
+      id: p.id, category_id: p.category_id, name: p.name, price: p.price,
+      unit: p.unit, image: p.image, is_active: p.is_active,
+      is_track_stock: p.is_track_stock, cashier_stock: p.cashier_stock,
+      min_stock: p.min_stock, category_name: p.category_name, category_icon: p.category_icon,
+    })));
+  }
   return res.json(products);
 });
 
@@ -113,7 +137,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/products - Create product (bukan untuk kasir)
-router.post('/', requireStockAccess, async (req: Request, res: Response) => {
+router.post('/', largeBody, requireStockAccess, async (req: Request, res: Response) => {
   const db = getDb();
   const { category_id, name, sku, barcode, price, cost_price, unit, stock, min_stock, is_track_stock, consignor_id, commission_percent } = req.body;
 
@@ -137,7 +161,7 @@ router.post('/', requireStockAccess, async (req: Request, res: Response) => {
 });
 
 // PUT /api/products/:id - Update product (bukan untuk kasir)
-router.put('/:id', requireStockAccess, async (req: Request, res: Response) => {
+router.put('/:id', largeBody, requireStockAccess, async (req: Request, res: Response) => {
   const db = getDb();
   const { name, price, cost_price, stock, min_stock, is_active, barcode, category_id, unit, consignor_id, commission_percent } = req.body;
 

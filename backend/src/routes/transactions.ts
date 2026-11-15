@@ -4,6 +4,8 @@ import { v4 as uuid } from 'uuid';
 import { requireAdminOnly } from '../middleware/roleGuard';
 import { getActorLabel } from '../middleware/actor';
 import { recordAudit } from '../lib/audit';
+import { validate } from '../middleware/validate';
+import { createTransactionSchema } from '../lib/schemas';
 
 const router = Router();
 
@@ -29,6 +31,11 @@ router.get('/', async (req: Request, res: Response) => {
     WHERE 1=1
   `;
   const params: any[] = [];
+  const auth = (req as any).auth;
+  if (auth?.kind === 'employee' && auth.role === 'waiter') {
+    query += ' AND t.employee_id = ?';
+    params.push(auth.id);
+  }
 
   if (start_date) { query += ' AND t.created_at >= ?'; params.push(start_date); }
   if (end_date) { query += ' AND t.created_at <= ?'; params.push(end_date); }
@@ -36,8 +43,8 @@ router.get('/', async (req: Request, res: Response) => {
   if (payment_method) { query += ' AND t.payment_method = ?'; params.push(payment_method); }
   if (is_void !== undefined) { query += ' AND t.is_void = ?'; params.push(Number(is_void)); }
   if (search) {
-    query += ' AND (t.receipt_number ILIKE ? OR c.name ILIKE ? OR e.name ILIKE ?)';
-    params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    query += ' AND (t.receipt_number ILIKE ? OR t.transaction_name ILIKE ? OR c.name ILIKE ? OR e.name ILIKE ?)';
+    params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
   }
 
   query += ' ORDER BY t.created_at DESC';
@@ -60,21 +67,36 @@ router.get('/:id', async (req: Request, res: Response) => {
   `, [req.params.id]) as any;
 
   if (!transaction) return res.status(404).json({ error: 'Transaction not found' });
+  const auth = (req as any).auth;
+  if (auth?.kind === 'employee' && auth.role === 'waiter' && transaction.employee_id !== auth.id) {
+    return res.status(403).json({ error: 'Hanya boleh melihat pesanan sendiri.' });
+  }
 
   const items = await db.all('SELECT * FROM transaction_items WHERE transaction_id = ?', [req.params.id]);
   return res.json({ ...transaction, items });
 });
 
 // POST /api/transactions - Create new transaction
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', validate(createTransactionSchema), async (req: Request, res: Response) => {
   const db = getDb();
   const {
-    employee_id, customer_id, order_type, order_reference,
-    items, payment_method, cash_amount, discount_total, notes, keep_change
+    employee_id, customer_id, order_type, order_reference, transaction_name,
+    items, discount_total, notes
   } = req.body;
 
   if (!employee_id || !items || !items.length) {
     return res.status(400).json({ error: 'employee_id and items required' });
+  }
+  const auth = (req as any).auth;
+  if (auth?.kind !== 'employee' || auth.role !== 'cashier') {
+    return res.status(403).json({ error: 'Hanya waiter atau kasir yang dapat mencatat pesanan.' });
+  }
+  if (employee_id !== auth.id) return res.status(403).json({ error: 'Identitas penginput tidak sesuai sesi.' });
+  if (auth.role === 'waiter' && Number(discount_total || 0) > 0) {
+    return res.status(403).json({ error: 'Waiter tidak dapat memberi diskon.' });
+  }
+  if (auth.role === 'waiter' && customer_id) {
+    return res.status(403).json({ error: 'Waiter tidak dapat mengubah data pelanggan.' });
   }
 
   const trxId = uuid();
@@ -88,8 +110,8 @@ router.post('/', async (req: Request, res: Response) => {
     const product = await db.get('SELECT * FROM products WHERE id = ?', [item.product_id]) as any;
     if (!product) continue;
 
-    const unitPrice = item.unit_price ?? product.price;
-    const itemDiscount = item.discount_amount || 0;
+    const unitPrice = auth.role === 'waiter' ? Number(product.price) : (item.unit_price ?? product.price);
+    const itemDiscount = auth.role === 'waiter' ? 0 : (item.discount_amount || 0);
     const quantity = item.quantity || 1;
 
     // Blokir jual kalau stok kasir tidak cukup (produk yang dilacak stoknya).
@@ -98,6 +120,7 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     const totalPrice = (unitPrice * quantity) - itemDiscount;
+    if (totalPrice < 0) return res.status(400).json({ error: `Diskon item melebihi harga ${product.name}.` });
     subtotal += totalPrice;
 
     trxItems.push({
@@ -111,7 +134,7 @@ router.post('/', async (req: Request, res: Response) => {
       total_price: totalPrice,
       modifier_details: item.modifier_details ? JSON.stringify(item.modifier_details) : null,
       notes: item.notes || null,
-      status: 'completed'
+      status: 'pending'
     });
   }
 
@@ -121,25 +144,17 @@ router.post('/', async (req: Request, res: Response) => {
 
   const discount = discount_total || 0;
   const grandTotal = subtotal - discount;
-
-  // Use provided cash_amount or default to grand_total
-  const cashPaid = cash_amount || grandTotal;
-  const overpaid = Math.max(0, cashPaid - grandTotal);
-  // Kalau pelanggan tidak ambil kembalian, uang lebih dicatat terpisah (masuk
-  // kas), bukan sebagai kembalian.
-  const changeAmount = keep_change ? 0 : overpaid;
-  const overpayAmount = keep_change ? overpaid : 0;
+  if (grandTotal < 0) return res.status(400).json({ error: 'Diskon melebihi total pesanan.' });
 
   // Begin transaction
   await db.transaction(async (tx) => {
     await tx.run(`
       INSERT INTO transactions (id, receipt_number, employee_id, customer_id,
-        order_type, order_reference, subtotal, discount_total, grand_total,
+        order_type, order_reference, transaction_name, subtotal, discount_total, grand_total,
         payment_method, payment_status, cash_amount, change_amount, overpay_amount, status, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?, ?, 'completed', ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'pending', NULL, 0, 0, 'open', ?)
     `, [trxId, receiptNumber, employee_id, customer_id || null,
-        order_type || 'dine_in', order_reference || null, subtotal, discount, grandTotal,
-        payment_method || 'cash', cashPaid, changeAmount, overpayAmount, notes || null]);
+        order_type || 'dine_in', order_reference || null, transaction_name.trim(), subtotal, discount, grandTotal, notes || null]);
 
     for (const item of trxItems) {
       await tx.run(`
@@ -160,28 +175,86 @@ router.post('/', async (req: Request, res: Response) => {
       `, [uuid(), item.product_id, item.quantity, trxId, employee_id]);
     }
 
-    // Update customer loyalty
-    if (customer_id) {
-      const pointsEarned = Math.floor(grandTotal / 10000); // 1 point per 10k
-      await tx.run(`
-        UPDATE customers SET
-          total_spent = total_spent + ?,
-          visit_count = visit_count + 1,
-          points = points + ?,
-          updated_at = now()
-        WHERE id = ?
-      `, [grandTotal, pointsEarned, customer_id]);
-      await tx.run(`
-        INSERT INTO loyalty_points_history (id, customer_id, points, type, transaction_id, description)
-        VALUES (?, ?, ?, 'earn', ?, ?)
-      `, [uuid(), customer_id, pointsEarned, trxId, 'Points from purchase #' + receiptNumber]);
-    }
   });
 
   return res.json({
     success: true,
-    transaction: { id: trxId, receipt_number: receiptNumber, grand_total: grandTotal, change_amount: changeAmount, overpay_amount: overpayAmount }
+    transaction: { id: trxId, receipt_number: receiptNumber, transaction_name, grand_total: grandTotal, payment_status: 'pending' }
   });
+});
+
+// Checklist jumlah item yang benar-benar sudah diserahkan ke pelanggan.
+router.patch('/:id/items/:itemId/delivery', async (req: Request, res: Response) => {
+  const auth = (req as any).auth;
+  if (auth?.kind !== 'employee' || !['waiter', 'cashier'].includes(auth.role)) {
+    return res.status(403).json({ error: 'Akses ditolak.' });
+  }
+  const quantity = req.body.delivered_quantity;
+  if (typeof quantity !== 'number' || !Number.isFinite(quantity) || quantity < 0) {
+    return res.status(400).json({ error: 'Jumlah terantar tidak valid.' });
+  }
+  const db = getDb();
+  try {
+    await db.transaction(async (tx) => {
+      const trx = await tx.get('SELECT employee_id, payment_status, is_void FROM transactions WHERE id = ? FOR UPDATE', [req.params.id]) as any;
+      if (!trx) throw new Error('Pesanan tidak ditemukan.');
+      if (trx.payment_status !== 'pending' || trx.is_void) throw new Error('Checklist pesanan ini sudah ditutup.');
+      const item = await tx.get('SELECT quantity FROM transaction_items WHERE id = ? AND transaction_id = ?', [req.params.itemId, req.params.id]) as any;
+      if (!item) throw new Error('Item tidak ditemukan.');
+      if (quantity > Number(item.quantity)) throw new Error('Jumlah terantar melebihi pesanan.');
+      await tx.run('UPDATE transaction_items SET delivered_quantity = ? WHERE id = ? AND transaction_id = ?', [quantity, req.params.itemId, req.params.id]);
+    });
+  } catch (e) {
+    return res.status(409).json({ error: e instanceof Error ? e.message : 'Checklist gagal disimpan.' });
+  }
+  return res.json({ success: true });
+});
+
+router.post('/:id/pay', async (req: Request, res: Response) => {
+  const auth = (req as any).auth;
+  if (auth?.kind !== 'employee' || auth.role !== 'cashier') {
+    return res.status(403).json({ error: 'Hanya kasir yang dapat menerima pembayaran.' });
+  }
+  const { payment_method, cash_amount, keep_change } = req.body;
+  if (!['cash', 'qris', 'card', 'ewallet'].includes(payment_method)) {
+    return res.status(400).json({ error: 'Metode pembayaran tidak valid.' });
+  }
+  if (payment_method === 'cash' && (typeof cash_amount !== 'number' || !Number.isFinite(cash_amount))) {
+    return res.status(400).json({ error: 'Jumlah uang tunai wajib diisi.' });
+  }
+  const db = getDb();
+  let paid: any;
+  try {
+    await db.transaction(async (tx) => {
+      const trx = await tx.get('SELECT * FROM transactions WHERE id = ? FOR UPDATE', [req.params.id]) as any;
+      if (!trx || trx.is_void || trx.payment_status !== 'pending') throw new Error('Pesanan tidak tersedia untuk pembayaran.');
+      const items = await tx.all('SELECT quantity, delivered_quantity FROM transaction_items WHERE transaction_id = ?', [req.params.id]) as any[];
+      if (!items.length || items.some((it) => Number(it.delivered_quantity) < Number(it.quantity))) {
+        throw new Error('Semua item harus ditandai terantar sebelum tutup bill.');
+      }
+      const total = Number(trx.grand_total);
+      const cash = payment_method === 'cash' ? cash_amount : total;
+      if (cash < total) throw new Error('Uang diterima kurang dari total tagihan.');
+      const excess = Math.max(0, cash - total);
+      const change = keep_change ? 0 : excess;
+      const overpay = keep_change ? excess : 0;
+      await tx.run(`UPDATE transactions SET payment_method = ?, payment_status = 'completed',
+        cash_amount = ?, change_amount = ?, overpay_amount = ?, status = 'completed', paid_by = ?, paid_at = now(), updated_at = now()
+        WHERE id = ?`, [payment_method, cash, change, overpay, auth.id, req.params.id]);
+      if (trx.customer_id) {
+        const points = Math.floor(total / 10000);
+        await tx.run(`UPDATE customers SET total_spent = total_spent + ?, visit_count = visit_count + 1,
+          points = points + ?, updated_at = now() WHERE id = ?`, [total, points, trx.customer_id]);
+        await tx.run(`INSERT INTO loyalty_points_history (id, customer_id, points, type, transaction_id, description)
+          VALUES (?, ?, ?, 'earn', ?, ?)`, [uuid(), trx.customer_id, points, req.params.id, 'Points from purchase #' + trx.receipt_number]);
+      }
+      paid = { id: trx.id, receipt_number: trx.receipt_number, transaction_name: trx.transaction_name,
+        grand_total: total, change_amount: change, overpay_amount: overpay, payment_status: 'completed' };
+    });
+  } catch (e) {
+    return res.status(409).json({ error: e instanceof Error ? e.message : 'Pembayaran gagal.' });
+  }
+  return res.json({ success: true, transaction: paid });
 });
 
 // POST /api/transactions/:id/void - Void a transaction (Admin lewat Website saja)

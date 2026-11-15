@@ -1,6 +1,6 @@
 import { getDb, closeDb } from './database';
 import { v4 as uuid } from 'uuid';
-import sha256 from 'sha256';
+import bcrypt from 'bcryptjs';
 
 /**
  * Seed minimal: tanpa data contoh.
@@ -9,7 +9,7 @@ import sha256 from 'sha256';
 async function seed() {
   const db = getDb();
 
-  console.log('🌱 Menyiapkan database (membuat akun admin awal)...');
+  console.log('Menyiapkan database (membuat akun admin awal)...');
 
   // Hapus semua data
   await db.run('DELETE FROM admin_users');
@@ -23,14 +23,12 @@ async function seed() {
   }
 
   // Contoh 1 karyawan kasir (PIN 123456) supaya aplikasi bisa langsung dicoba.
-  // Admin TIDAK dibuat sebagai karyawan — admin login lewat Website (admin_users).
-  // Tambah/ubah kasir & petugas stok lewat menu Karyawan di Web Admin.
+  const hashedPin = await bcrypt.hash('123456', 10);
   await db.run('INSERT INTO employees (id, name, pin, role) VALUES (?, ?, ?, ?)', [
-    uuid(), 'Kasir Contoh', sha256('123456'), 'cashier'
+    uuid(), 'Kasir Contoh', hashedPin, 'cashier'
   ]);
 
   // Buat admin web default — password dari env, atau acak (cetak sekali).
-  const bcrypt = require('bcryptjs');
   const crypto = require('crypto');
   const email = process.env.DEFAULT_ADMIN_EMAIL || 'admin@kantinku.com';
   const envPass = process.env.DEFAULT_ADMIN_PASSWORD;
@@ -41,10 +39,14 @@ async function seed() {
     ['admin_web_1', email, passwordHash, 'Super Admin']
   );
 
-  console.log(`✅ Database siap. Login Admin Web: ${email}`);
-  if (!envPass) console.log(`   PASSWORD ACAK (segera ganti): ${password}`);
-  console.log('   Kasir contoh untuk aplikasi: PIN 123456 (peran Kasir).');
-  console.log('   (Tambah kategori, menu, dan karyawan langsung di Web Admin.)');
+  console.log(`Database siap. Login Admin Web: ${email}`);
+  if (!envPass) {
+    console.log('PASSWORD AWAL telah di-generate. Cek output di atas sekali saja.');
+    console.log(`Set DEFAULT_ADMIN_PASSWORD di env untuk menghindari password acak.`);
+    // Print password ke stderr (bukan stdout) untuk mengurangi risiko tercatat di log biasa
+    process.stderr.write(`[SEED] Generated admin password: ${password}\n`);
+  }
+  console.log('Kasir contoh untuk aplikasi: PIN 123456 (peran Kasir).');
 
   await closeDb();
 }

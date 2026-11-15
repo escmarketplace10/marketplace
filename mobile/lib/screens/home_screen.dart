@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/theme.dart';
+import '../core/widgets.dart';
+import '../services/api.dart';
 import '../state/session.dart';
 import 'pos_screen.dart';
 import 'menu_screen.dart';
@@ -32,9 +35,48 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _index = 0;
+  Timer? _paymentTimer;
+  Set<String>? _paidOrders;
+  bool _checkingPayments = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _checkPayments();
+    });
+    _paymentTimer = Timer.periodic(const Duration(seconds: 15), (_) => _checkPayments());
+  }
+
+  @override
+  void dispose() {
+    _paymentTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _checkPayments() async {
+    if (!mounted || _checkingPayments || context.read<Session>().role != 'waiter') return;
+    _checkingPayments = true;
+    try {
+      final orders = await Api.transactions(params: {'limit': 100});
+      final paid = orders.where((t) => t['payment_status'] == 'completed').map((t) => t['id'].toString()).toSet();
+      if (_paidOrders != null) {
+        for (final order in orders) {
+          if (order['payment_status'] == 'completed' && !_paidOrders!.contains(order['id'].toString())) {
+            if (mounted) showSnack(context, 'Transaksi ${order['transaction_name'] ?? order['receipt_number']} sudah lunas.');
+          }
+        }
+      }
+      _paidOrders = paid;
+    } catch (_) {
+      // Kegagalan koneksi tidak mengganggu pekerjaan kasir; coba lagi pada interval berikutnya.
+    } finally {
+      _checkingPayments = false;
+    }
+  }
 
   final List<_NavItem> _all = [
-    _NavItem('pos', 'Kasir', Icons.point_of_sale, () => const PosScreen()),
+    _NavItem('pos', 'Pesanan', Icons.point_of_sale, () => const PosScreen()),
     _NavItem('dashboard', 'Dashboard', Icons.dashboard_rounded, () => const DashboardScreen()),
     _NavItem('menu', 'Menu', Icons.restaurant_menu, () => const MenuScreen()),
     _NavItem('inventory', 'Stok', Icons.inventory_2_rounded, () => const InventoryScreen()),

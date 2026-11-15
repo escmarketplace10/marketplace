@@ -198,7 +198,7 @@ export default function Employees() {
                     </td>
                     <td>
                       <span className={`badge ${e.role === 'admin' ? 'badge-green' : e.role === 'stocking' ? 'badge-orange' : 'badge-blue'}`}>
-                        {e.role === 'admin' ? '🛡️ Admin' : e.role === 'stocking' ? '📦 Petugas Stok' : '🛒 Kasir'}
+                        {e.role === 'admin' ? '🛡️ Admin' : e.role === 'stocking' ? '📦 Petugas Stok' : e.role === 'waiter' ? 'Waiter' : '🛒 Kasir'}
                       </span>
                     </td>
                     <td>{e.phone || '-'}</td>
@@ -253,6 +253,7 @@ export default function Employees() {
                   <label className="form-label">Peran Karyawan *</label>
                   <select className="form-select" value={form.role} onChange={e => setForm((f: any) => ({ ...f, role: e.target.value }))}>
                     <option value="cashier">Kasir (transaksi &amp; pelanggan)</option>
+                    <option value="waiter">Waiter (pesanan sendiri, tanpa pembayaran)</option>
                     <option value="stocking">Petugas Stok (menu, stok, pembelian)</option>
                     <option value="admin">Admin (login web, hak akses diatur)</option>
                   </select>

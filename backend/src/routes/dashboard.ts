@@ -15,14 +15,14 @@ router.get('/summary', requirePerm('dashboard'), async (_req: Request, res: Resp
       COALESCE(SUM(grand_total), 0) as total_sales,
       COALESCE(AVG(grand_total), 0) as avg_basket
     FROM transactions
-    WHERE created_at::date = ? AND is_void = 0
+    WHERE COALESCE(paid_at, created_at)::date = ? AND is_void = 0 AND payment_status = 'completed'
   `, [today]) as any;
 
   const topProducts = await db.all(`
     SELECT ti.product_id, ti.product_name, SUM(ti.quantity) as qty, SUM(ti.total_price) as total
     FROM transaction_items ti
     JOIN transactions t ON ti.transaction_id = t.id
-    WHERE t.created_at::date = ? AND t.is_void = 0
+    WHERE COALESCE(t.paid_at, t.created_at)::date = ? AND t.is_void = 0 AND t.payment_status = 'completed'
     GROUP BY ti.product_id, ti.product_name
     ORDER BY qty DESC
     LIMIT 10
@@ -60,10 +60,10 @@ router.get('/sales-chart', requirePerm('dashboard'), async (req: Request, res: R
   const endDate = end_date || new Date().toISOString().slice(0, 10);
 
   const data = await db.all(`
-    SELECT to_char(created_at, 'YYYY-MM-DD') as date, COUNT(*) as count, COALESCE(SUM(grand_total), 0) as total
+    SELECT to_char(COALESCE(paid_at, created_at), 'YYYY-MM-DD') as date, COUNT(*) as count, COALESCE(SUM(grand_total), 0) as total
     FROM transactions
-    WHERE created_at::date >= ? AND created_at::date <= ? AND is_void = 0
-    GROUP BY to_char(created_at, 'YYYY-MM-DD')
+    WHERE COALESCE(paid_at, created_at)::date >= ? AND COALESCE(paid_at, created_at)::date <= ? AND is_void = 0 AND payment_status = 'completed'
+    GROUP BY to_char(COALESCE(paid_at, created_at), 'YYYY-MM-DD')
     ORDER BY date ASC
   `, [startDate, endDate]);
 
@@ -80,7 +80,7 @@ router.get('/payment-methods', requirePerm('dashboard'), async (req: Request, re
   const data = await db.all(`
     SELECT payment_method, COUNT(*) as count, COALESCE(SUM(grand_total), 0) as total
     FROM transactions
-    WHERE created_at::date >= ? AND created_at::date <= ? AND is_void = 0
+    WHERE COALESCE(paid_at, created_at)::date >= ? AND COALESCE(paid_at, created_at)::date <= ? AND is_void = 0 AND payment_status = 'completed'
     GROUP BY payment_method
     ORDER BY total DESC
   `, [startDate, endDate]);
@@ -96,10 +96,10 @@ router.get('/peak-hours', requirePerm('dashboard'), async (req: Request, res: Re
   const endDate = end_date || new Date().toISOString().slice(0, 10);
 
   const data = await db.all(`
-    SELECT EXTRACT(HOUR FROM created_at)::int as hour, COUNT(*) as count, COALESCE(SUM(grand_total), 0) as total
+    SELECT EXTRACT(HOUR FROM COALESCE(paid_at, created_at))::int as hour, COUNT(*) as count, COALESCE(SUM(grand_total), 0) as total
     FROM transactions
-    WHERE created_at::date >= ? AND created_at::date <= ? AND is_void = 0
-    GROUP BY EXTRACT(HOUR FROM created_at)::int
+    WHERE COALESCE(paid_at, created_at)::date >= ? AND COALESCE(paid_at, created_at)::date <= ? AND is_void = 0 AND payment_status = 'completed'
+    GROUP BY EXTRACT(HOUR FROM COALESCE(paid_at, created_at))::int
     ORDER BY hour ASC
   `, [startDate, endDate]);
 
@@ -117,7 +117,7 @@ router.get('/profit-loss', requirePerm('laba-rugi'), async (req: Request, res: R
 
   const revenue = await db.get(`
     SELECT COALESCE(SUM(grand_total), 0) as total
-    FROM transactions WHERE created_at::date >= ? AND created_at::date <= ? AND is_void = 0
+    FROM transactions WHERE COALESCE(paid_at, created_at)::date >= ? AND COALESCE(paid_at, created_at)::date <= ? AND is_void = 0 AND payment_status = 'completed'
   `, [startDate, endDate]) as any;
 
   // HPP hanya untuk produk milik toko sendiri (produk titipan bukan modal toko)
@@ -126,7 +126,7 @@ router.get('/profit-loss', requirePerm('laba-rugi'), async (req: Request, res: R
     FROM transaction_items ti
     JOIN transactions t ON ti.transaction_id = t.id
     JOIN products p ON ti.product_id = p.id
-    WHERE t.created_at::date >= ? AND t.created_at::date <= ? AND t.is_void = 0
+    WHERE COALESCE(t.paid_at, t.created_at)::date >= ? AND COALESCE(t.paid_at, t.created_at)::date <= ? AND t.is_void = 0 AND t.payment_status = 'completed'
       AND p.consignor_id IS NULL
   `, [startDate, endDate]) as any;
 
@@ -136,7 +136,7 @@ router.get('/profit-loss', requirePerm('laba-rugi'), async (req: Request, res: R
     FROM transaction_items ti
     JOIN transactions t ON ti.transaction_id = t.id
     JOIN products p ON ti.product_id = p.id
-    WHERE t.created_at::date >= ? AND t.created_at::date <= ? AND t.is_void = 0
+    WHERE COALESCE(t.paid_at, t.created_at)::date >= ? AND COALESCE(t.paid_at, t.created_at)::date <= ? AND t.is_void = 0 AND t.payment_status = 'completed'
       AND p.consignor_id IS NOT NULL
   `, [startDate, endDate]) as any;
 
@@ -156,7 +156,7 @@ router.get('/profit-loss', requirePerm('laba-rugi'), async (req: Request, res: R
     FROM transaction_items ti
     JOIN transactions t ON ti.transaction_id = t.id
     JOIN products p ON ti.product_id = p.id
-    WHERE t.created_at::date >= ? AND t.created_at::date <= ? AND t.is_void = 0
+    WHERE COALESCE(t.paid_at, t.created_at)::date >= ? AND COALESCE(t.paid_at, t.created_at)::date <= ? AND t.is_void = 0 AND t.payment_status = 'completed'
     GROUP BY ti.product_name
     ORDER BY subtotal DESC
   `, [startDate, endDate]) as any[];
@@ -189,7 +189,7 @@ router.get('/abc-analysis', requirePerm('dashboard'), async (req: Request, res: 
     FROM transaction_items ti
     JOIN transactions t ON ti.transaction_id = t.id
     JOIN products p ON ti.product_id = p.id
-    WHERE t.created_at::date >= ? AND t.created_at::date <= ? AND t.is_void = 0
+    WHERE COALESCE(t.paid_at, t.created_at)::date >= ? AND COALESCE(t.paid_at, t.created_at)::date <= ? AND t.is_void = 0 AND t.payment_status = 'completed'
     GROUP BY ti.product_id, ti.product_name
     ORDER BY total DESC
   `, [startDate, endDate]) as any[];

@@ -6,11 +6,13 @@ import { JWT_SECRET } from '../middleware/secret';
 import { loginRateLimit } from '../middleware/rateLimit';
 import { recordAudit } from '../lib/audit';
 import { hasPermission } from '../middleware/permissions';
+import { validate } from '../middleware/validate';
+import { adminLoginSchema, changePasswordSchema } from '../lib/schemas';
 
 const router = Router();
 
 // POST /api/admin/login
-router.post('/login', loginRateLimit(), async (req: Request, res: Response) => {
+router.post('/login', loginRateLimit(), validate(adminLoginSchema), async (req: Request, res: Response) => {
   const { email, password } = req.body;
   
   if (!email || !password) {
@@ -25,11 +27,11 @@ router.post('/login', loginRateLimit(), async (req: Request, res: Response) => {
       const isMatch = await bcrypt.compare(password, admin.password_hash);
       if (!isMatch) return res.status(401).json({ error: 'Email atau password salah' });
 
-      // Super Admin: akses penuh.
+      // Super Admin: akses penuh. TTL lebih pendek untuk keamanan.
       const token = jwt.sign(
         { kind: 'admin', id: admin.id, email: admin.email, name: admin.name, is_super: true },
         JWT_SECRET,
-        { expiresIn: '7d' }
+        { expiresIn: '24h' }
       );
       await recordAudit(req, {
         action: 'login', entity: 'admin', entity_id: admin.id,
@@ -56,7 +58,7 @@ router.post('/login', loginRateLimit(), async (req: Request, res: Response) => {
       const token = jwt.sign(
         { kind: 'admin', id: sub.id, email: sub.email, name: sub.name, is_super: false, perms },
         JWT_SECRET,
-        { expiresIn: '7d' }
+        { expiresIn: '24h' }
       );
       await recordAudit(req, {
         action: 'login', entity: 'admin', entity_id: sub.id,
@@ -84,18 +86,12 @@ router.get('/me', requireAdminAuth, (req: Request, res: Response) => {
 });
 
 // POST /api/admin/change-password — wajib token admin (bukan token kasir)
-router.post('/change-password', requireAdminAuth, async (req: Request, res: Response) => {
+router.post('/change-password', requireAdminAuth, validate(changePasswordSchema), async (req: Request, res: Response) => {
   const user = (req as any).adminUser;
   if (user?.kind !== 'admin') {
     return res.status(403).json({ error: 'Hanya admin yang boleh mengganti password.' });
   }
   const { old_password, new_password } = req.body;
-  if (!old_password || !new_password) {
-    return res.status(400).json({ error: 'Password lama dan baru wajib diisi' });
-  }
-  if (String(new_password).length < 8) {
-    return res.status(400).json({ error: 'Password baru minimal 8 karakter' });
-  }
 
   const db = getDb();
   const admin = await db.get('SELECT * FROM admin_users WHERE id = ?', [user.id]) as any;

@@ -344,6 +344,7 @@ class _CartFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cart = context.watch<Cart>();
+    final isWaiter = context.read<Session>().role == 'waiter';
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 8, offset: const Offset(0, -2))]),
@@ -352,15 +353,15 @@ class _CartFooter extends StatelessWidget {
         children: [
           Row(
             children: [
-              Expanded(
+              if (!isWaiter) Expanded(
                 child: TextField(
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(labelText: 'Diskon %', isDense: true),
                   onChanged: (v) => cart.setDiscount(double.tryParse(v) ?? 0),
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
+              if (!isWaiter) const SizedBox(width: 8),
+              if (!isWaiter) Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => _pickCustomer(context, cart),
                   icon: const Icon(Icons.person_outline, size: 18),
@@ -387,18 +388,18 @@ class _CartFooter extends StatelessWidget {
           const SizedBox(height: 8),
           Row(
             children: [
-              OutlinedButton.icon(
+              if (!isWaiter) OutlinedButton.icon(
                 onPressed: cart.isEmpty ? null : () => _holdOrder(context, cart),
                 icon: const Icon(Icons.pause_circle_outline, size: 18),
                 label: const Text('Tahan'),
               ),
-              const SizedBox(width: 8),
+              if (!isWaiter) const SizedBox(width: 8),
               Expanded(
                 child: FilledButton.icon(
                   style: FilledButton.styleFrom(backgroundColor: AppColors.success),
-                  onPressed: cart.isEmpty ? null : () => _pay(context, cart, onPaid),
-                  icon: const Icon(Icons.payments),
-                  label: Text('BAYAR ${rupiah(cart.grandTotal)}'),
+                  onPressed: cart.isEmpty ? null : () => _saveOrder(context, cart, onPaid),
+                  icon: Icon(isWaiter ? Icons.restaurant : Icons.receipt_long),
+                  label: Text(isWaiter ? 'Kirim Pesanan' : 'Buat Tagihan'),
                 ),
               ),
             ],
@@ -435,6 +436,51 @@ Future<void> _pay(BuildContext context, Cart cart, VoidCallback onPaid) async {
     isScrollControlled: true,
     builder: (_) => ChangeNotifierProvider.value(value: cart, child: _PaymentSheet(onPaid: onPaid)),
   );
+}
+
+Future<void> _saveOrder(BuildContext context, Cart cart, VoidCallback onSaved) async {
+  final nameCtrl = TextEditingController(text: cart.orderRef.trim());
+  final name = await showDialog<String>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Nama transaksi'),
+      content: TextField(
+        controller: nameCtrl,
+        autofocus: true,
+        maxLength: 100,
+        decoration: const InputDecoration(labelText: 'Nama transaksi', hintText: 'Contoh: Meja 3 - Budi'),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
+        FilledButton(onPressed: () => Navigator.pop(ctx, nameCtrl.text.trim()), child: const Text('Simpan Pesanan')),
+      ],
+    ),
+  );
+  nameCtrl.dispose();
+  if (name == null || !context.mounted) return;
+  if (name.isEmpty) {
+    showSnack(context, 'Nama transaksi wajib diisi.', error: true);
+    return;
+  }
+  try {
+    final session = context.read<Session>();
+    await Api.createTransaction({
+      'employee_id': session.employeeId,
+      'transaction_name': name,
+      'customer_id': cart.customer?['id'],
+      'order_type': cart.orderType == 'take_away' ? 'takeaway' : cart.orderType,
+      'order_reference': cart.orderRef.isEmpty ? null : cart.orderRef,
+      'items': cart.items.map((e) => e.toItemJson()).toList(),
+      'discount_total': cart.discountValue,
+    });
+    cart.clear();
+    if (!context.mounted) return;
+    showSnack(context, 'Pesanan tersimpan. Kasir dapat melihatnya di Transaksi.');
+    onSaved();
+    Navigator.of(context).maybePop();
+  } catch (e) {
+    if (context.mounted) showSnack(context, e.toString(), error: true);
+  }
 }
 
 /// Edit catatan item (mis. "less sugar", "tanpa es") atau hapus item dari keranjang.
@@ -552,6 +598,7 @@ class _HeldOrdersChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cart = context.watch<Cart>();
+    if (context.read<Session>().role == 'waiter') return const SizedBox.shrink();
     final count = AppConfig.heldOrders.length;
     if (count == 0) return const SizedBox.shrink();
     return Padding(
