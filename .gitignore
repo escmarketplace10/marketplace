@@ -21,3 +21,4 @@ Kantinku.apk
 *.log
 
 .vercel
+.env*
