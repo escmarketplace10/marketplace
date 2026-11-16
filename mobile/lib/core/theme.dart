@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 /// Palet brand Kantinku — profesional, oranye + sidebar gelap.
 class AppColors {
-  static const primary = Color(0xFFF97316); // oranye brand
-  static const primaryDark = Color(0xFFEA580C);
+  static const primary = Color(0xFFC2410C);
+  static const primaryDark = Color(0xFF9A3412);
+  static const primarySoft = Color(0xFFFFF7ED);
   static const accent = Color(0xFF2563EB); // biru sekunder
   static const sidebar = Color(0xFF111827); // gelap (navigasi)
   static const sidebarMuted = Color(0xFF9CA3AF);
@@ -27,9 +28,9 @@ ThemeData buildTheme() {
   );
 
   OutlineInputBorder border(Color c, [double w = 1]) => OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: c, width: w),
-      );
+    borderRadius: BorderRadius.circular(12),
+    borderSide: BorderSide(color: c, width: w),
+  );
 
   return ThemeData(
     useMaterial3: true,
@@ -43,7 +44,11 @@ ThemeData buildTheme() {
       elevation: 0,
       scrolledUnderElevation: 0.5,
       centerTitle: false,
-      titleTextStyle: TextStyle(color: AppColors.ink, fontSize: 19, fontWeight: FontWeight.w700),
+      titleTextStyle: TextStyle(
+        color: AppColors.ink,
+        fontSize: 19,
+        fontWeight: FontWeight.w700,
+      ),
     ),
     cardTheme: CardThemeData(
       color: AppColors.surface,
@@ -90,7 +95,10 @@ ThemeData buildTheme() {
       border: border(AppColors.line),
       enabledBorder: border(AppColors.line),
       focusedBorder: border(AppColors.primary, 1.6),
-      hintStyle: const TextStyle(color: AppColors.muted, fontWeight: FontWeight.w400),
+      hintStyle: const TextStyle(
+        color: AppColors.muted,
+        fontWeight: FontWeight.w400,
+      ),
     ),
     chipTheme: ChipThemeData(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -100,10 +108,16 @@ ThemeData buildTheme() {
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: AppColors.surface,
       indicatorColor: AppColors.primary.withValues(alpha: 0.14),
-      labelTextStyle: WidgetStateProperty.all(const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+      labelTextStyle: WidgetStateProperty.all(
+        const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+      ),
       height: 64,
     ),
-    dividerTheme: const DividerThemeData(color: AppColors.line, thickness: 1, space: 1),
+    dividerTheme: const DividerThemeData(
+      color: AppColors.line,
+      thickness: 1,
+      space: 1,
+    ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -115,20 +129,5 @@ ThemeData buildTheme() {
 }
 
 /// Warna & ikon placeholder untuk kartu menu (dipakai bila belum ada foto).
-const _menuPalette = [
-  (Color(0xFFFFF7ED), Color(0xFFF97316)),
-  (Color(0xFFEFF6FF), Color(0xFF2563EB)),
-  (Color(0xFFF0FDF4), Color(0xFF16A34A)),
-  (Color(0xFFFEF2F2), Color(0xFFDC2626)),
-  (Color(0xFFFEFCE8), Color(0xFFCA8A04)),
-  (Color(0xFFF5F3FF), Color(0xFF7C3AED)),
-  (Color(0xFFFDF2F8), Color(0xFFDB2777)),
-  (Color(0xFFECFEFF), Color(0xFF0891B2)),
-];
-
-/// Pilih warna placeholder konsisten berdasar teks (nama/kategori).
-(Color, Color) menuColors(String key) {
-  if (key.isEmpty) return _menuPalette.first;
-  final idx = key.codeUnits.fold<int>(0, (a, b) => a + b) % _menuPalette.length;
-  return _menuPalette[idx];
-}
+(Color, Color) menuColors(String key) =>
+    (AppColors.primarySoft, AppColors.primary);

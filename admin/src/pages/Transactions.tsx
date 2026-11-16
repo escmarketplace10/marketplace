@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Receipt, Search, Eye, XCircle, Wallet, TrendingUp, Ban, Coins } from 'lucide-react';
+import { Receipt, Search, Eye, XCircle, Wallet, TrendingUp, Ban, Coins, Trash2 } from 'lucide-react';
 import { toast } from '../ui/feedback';
+import { isSuperAdmin } from '../lib/perms';
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n || 0);
@@ -10,7 +11,7 @@ const fmtDateTime = (s: string) =>
   new Date(s).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 const paymentLabel: Record<string, string> = {
-  cash: '💵 Tunai', qris: '📱 QRIS', card: '💳 Kartu', ewallet: '📲 E-Wallet',
+  cash: 'Tunai', qris: 'QRIS', card: 'Kartu', ewallet: 'E-Wallet',
 };
 
 export default function Transactions() {
@@ -24,6 +25,10 @@ export default function Transactions() {
   const [voiding, setVoiding] = useState(false);
   const [showVoidModal, setShowVoidModal] = useState(false);
   const [voidReason, setVoidReason] = useState('');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [confirmReceipt, setConfirmReceipt] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const token = localStorage.getItem('admin_token');
   const headers = { Authorization: `Bearer ${token}` };
@@ -61,6 +66,7 @@ export default function Transactions() {
   const openVoidModal = () => { setVoidReason(''); setShowVoidModal(true); };
 
   const confirmVoid = async () => {
+    if (!voidReason.trim()) { toast('Alasan pembatalan wajib diisi.', 'error'); return; }
     setVoiding(true);
     try {
       await axios.post(`/api/transactions/${detail.id}/void`, { reason: voidReason.trim() }, { headers });
@@ -75,7 +81,27 @@ export default function Transactions() {
     }
   };
 
-  const activeTrx = trx.filter(t => !t.is_void);
+  const confirmDelete = async () => {
+    if (!detail || !detail.is_void || !isSuperAdmin()) return;
+    if (deleteReason.trim().length < 10 || confirmReceipt.trim() !== detail.receipt_number) {
+      toast('Isi alasan minimal 10 karakter dan ketik nomor struk dengan tepat.', 'error');
+      return;
+    }
+    setDeleting(true);
+    try {
+      await axios.delete(`/api/transactions/${detail.id}`, { headers, data: {
+        reason: deleteReason.trim(), confirm_receipt_number: confirmReceipt.trim(),
+      } });
+      setShowDeleteModal(false);
+      setDetail(null);
+      toast('Transaksi Void dihapus permanen.', 'success');
+      load();
+    } catch (e: any) {
+      toast(e.response?.data?.error || 'Gagal menghapus transaksi.', 'error');
+    } finally { setDeleting(false); }
+  };
+
+  const activeTrx = trx.filter(t => !t.is_void && t.payment_status === 'completed');
   const totalOmzet = activeTrx.reduce((sum, t) => sum + Number(t.grand_total || 0), 0);
   const totalUangLebih = activeTrx.reduce((sum, t) => sum + Number(t.overpay_amount || 0), 0);
   const voidCount = trx.filter(t => t.is_void).length;
@@ -98,7 +124,7 @@ export default function Transactions() {
         <div className="stat-card blue">
           <div className="stat-card-header"><div className="stat-card-icon blue"><Wallet size={20} /></div></div>
           <div className="stat-value">{activeTrx.length}</div>
-          <div className="stat-label">Transaksi Selesai</div>
+          <div className="stat-label">Transaksi Sudah Bayar</div>
         </div>
         <div className="stat-card amber">
           <div className="stat-card-header"><div className="stat-card-icon amber"><Coins size={20} /></div></div>
@@ -120,7 +146,7 @@ export default function Transactions() {
             <input type="date" className="form-input" style={{ width: 150 }} value={endDate} onChange={e => setEndDate(e.target.value)} />
             <select className="form-select" style={{ width: 150 }} value={voidFilter} onChange={e => setVoidFilter(e.target.value)}>
               <option value="">Semua Status</option>
-              <option value="0">Selesai</option>
+              <option value="0">Tidak Void</option>
               <option value="1">Void</option>
             </select>
             <div className="search-input-wrapper" style={{ minWidth: 200 }}>
@@ -157,8 +183,8 @@ export default function Transactions() {
                     </td>
                     <td style={{ fontWeight: 700 }}>{fmt(t.grand_total)}</td>
                     <td>
-                      <span className={`badge ${t.is_void ? 'badge-red' : 'badge-green'}`}>
-                        {t.is_void ? 'Void' : 'Selesai'}
+                      <span className={`badge ${t.is_void ? 'badge-red' : t.payment_status === 'completed' ? 'badge-green' : 'badge-yellow'}`}>
+                        {t.is_void ? 'Void' : t.payment_status === 'completed' ? 'Sudah bayar' : 'Belum dibayar'}
                       </span>
                     </td>
                     <td style={{ textAlign: 'center' }}>
@@ -176,7 +202,7 @@ export default function Transactions() {
         <div className="modal-overlay" onClick={() => setDetail(null)}>
           <div className="modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <div className="modal-title">🧾 Struk #{detail.receipt_number}</div>
+              <div className="modal-title">Struk #{detail.receipt_number}</div>
               <button className="modal-close" onClick={() => setDetail(null)}>×</button>
             </div>
             <div className="modal-body">
@@ -192,6 +218,9 @@ export default function Transactions() {
                   <div>Oleh: {detail.void_by || '-'}</div>
                 </div>
               )}
+              {!detail.is_void && <div className={`badge ${detail.payment_status === 'completed' ? 'badge-green' : 'badge-yellow'}`} style={{ marginBottom: 14 }}>
+                {detail.payment_status === 'completed' ? 'Sudah bayar' : 'Belum dibayar'}
+              </div>}
 
               <div className="table-container" style={{ marginBottom: 16 }}>
                 <table>
@@ -217,9 +246,9 @@ export default function Transactions() {
                 <Row label="Diskon" value={`- ${fmt(detail.discount_total)}`} />
                 {Number(detail.tax_total) > 0 && <Row label="Pajak" value={fmt(detail.tax_total)} />}
                 <Row label="Total" value={fmt(detail.grand_total)} big />
-                <Row label={`Dibayar (${paymentLabel[detail.payment_method] || detail.payment_method || '-'})`} value={fmt(detail.cash_amount)} />
-                <Row label="Kembalian" value={fmt(detail.change_amount)} />
-                {Number(detail.overpay_amount) > 0 && <Row label="Uang lebih (tidak diambil)" value={fmt(detail.overpay_amount)} />}
+                {detail.payment_status === 'completed' && <Row label={`Dibayar (${paymentLabel[detail.payment_method] || detail.payment_method || '-'})`} value={fmt(detail.cash_amount)} />}
+                {detail.payment_status === 'completed' && <Row label="Kembalian" value={fmt(detail.change_amount)} />}
+                {detail.payment_status === 'completed' && Number(detail.overpay_amount) > 0 && <Row label="Uang lebih (tidak diambil)" value={fmt(detail.overpay_amount)} />}
                 {detail.notes && <Row label="Catatan" value={detail.notes} />}
               </div>
             </div>
@@ -228,6 +257,11 @@ export default function Transactions() {
               {!detail.is_void && (
                 <button className="btn btn-danger" onClick={openVoidModal} disabled={voiding}>
                   <XCircle size={14} /> Batalkan (Void)
+                </button>
+              )}
+              {detail.is_void && isSuperAdmin() && (
+                <button className="btn btn-danger" onClick={() => { setDeleteReason(''); setConfirmReceipt(''); setShowDeleteModal(true); }}>
+                  <Trash2 size={14} /> Hapus permanen
                 </button>
               )}
             </div>
@@ -248,7 +282,7 @@ export default function Transactions() {
                 Void mengembalikan stok & mengubah catatan keuangan. Tindakan ini tidak bisa dibatalkan.
               </p>
               <div className="form-group">
-                <label className="form-label">Alasan pembatalan (opsional)</label>
+                <label className="form-label">Alasan pembatalan</label>
                 <textarea
                   className="form-input"
                   rows={3}
@@ -262,6 +296,33 @@ export default function Transactions() {
               <button className="btn btn-secondary" onClick={() => setShowVoidModal(false)} disabled={voiding}>Batal</button>
               <button className="btn btn-danger" onClick={confirmVoid} disabled={voiding}>
                 <XCircle size={14} /> {voiding ? 'Membatalkan...' : 'Ya, Batalkan'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showDeleteModal && detail?.is_void && isSuperAdmin() && (
+        <div className="modal-overlay" onClick={() => !deleting && setShowDeleteModal(false)}>
+          <div className="modal" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">Hapus transaksi Void permanen</div>
+              <button className="modal-close" aria-label="Tutup" onClick={() => setShowDeleteModal(false)} disabled={deleting}>×</button>
+            </div>
+            <div className="modal-body">
+              <p>Struk dan item transaksi akan dihapus. Tindakan ini tidak dapat dibatalkan.</p>
+              <div className="form-group">
+                <label className="form-label" htmlFor="delete-receipt">Ketik nomor struk: {detail.receipt_number}</label>
+                <input id="delete-receipt" className="form-input" value={confirmReceipt} onChange={e => setConfirmReceipt(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label" htmlFor="delete-reason">Alasan penghapusan</label>
+                <textarea id="delete-reason" className="form-input" rows={3} value={deleteReason} onChange={e => setDeleteReason(e.target.value)} />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setShowDeleteModal(false)} disabled={deleting}>Batal</button>
+              <button className="btn btn-danger" onClick={confirmDelete} disabled={deleting || confirmReceipt.trim() !== detail.receipt_number || deleteReason.trim().length < 10}>
+                <Trash2 size={14} /> {deleting ? 'Menghapus...' : 'Hapus permanen'}
               </button>
             </div>
           </div>

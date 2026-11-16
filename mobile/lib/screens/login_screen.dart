@@ -67,9 +67,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Image.asset('assets/logo.png', width: 88, height: 88),
                 ),
                 const SizedBox(height: 14),
-                const Text('Kantinku', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
-                const Text('Masukkan PIN Kasir / Waiter / Petugas Stok',
-                    style: TextStyle(color: AppColors.muted, fontSize: 14)),
+                const Text(
+                  'Kantinku',
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
+                ),
+                const Text(
+                  'Masuk dengan PIN karyawan',
+                  style: TextStyle(color: AppColors.muted, fontSize: 14),
+                ),
                 const SizedBox(height: 24),
                 // Indikator PIN
                 Row(
@@ -83,7 +88,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: filled ? AppColors.primary : Colors.transparent,
-                        border: Border.all(color: filled ? AppColors.primary : AppColors.muted, width: 2),
+                        border: Border.all(
+                          color: filled ? AppColors.primary : AppColors.muted,
+                          width: 2,
+                        ),
                       ),
                     );
                   }),
@@ -92,25 +100,43 @@ class _LoginScreenState extends State<LoginScreen> {
                 if (_error != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(_error!,
-                        style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w700)),
+                    child: Text(
+                      _error!,
+                      style: const TextStyle(
+                        color: AppColors.danger,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 const SizedBox(height: 8),
-                _Keypad(onDigit: _digit, onBackspace: _backspace, disabled: _loading),
+                _Keypad(
+                  onDigit: _digit,
+                  onBackspace: _backspace,
+                  disabled: _loading,
+                ),
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton(
                     onPressed: _loading || _pin.length < 4 ? null : _submit,
                     child: _loading
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
                         : const Text('MASUK'),
                   ),
                 ),
                 const SizedBox(height: 12),
-                const Text('Admin mengelola toko lewat Website.\nPIN kasir contoh pertama kali: 123456',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: AppColors.muted, fontSize: 11)),
+                const Text(
+                  'Belum punya PIN? Hubungi admin toko.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.muted, fontSize: 11),
+                ),
               ],
             ),
           ),
@@ -124,7 +150,11 @@ class _Keypad extends StatelessWidget {
   final void Function(String) onDigit;
   final VoidCallback onBackspace;
   final bool disabled;
-  const _Keypad({required this.onDigit, required this.onBackspace, required this.disabled});
+  const _Keypad({
+    required this.onDigit,
+    required this.onBackspace,
+    required this.disabled,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -153,7 +183,13 @@ class _Keypad extends StatelessWidget {
               alignment: Alignment.center,
               child: isBack
                   ? const Icon(Icons.backspace_outlined, size: 24)
-                  : Text(k, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
+                  : Text(
+                      k,
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
             ),
           ),
         );

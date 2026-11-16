@@ -3,21 +3,21 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
   LayoutDashboard, TrendingUp, Package, Truck, ShoppingCart,
-  Wallet, Users, LogOut, UserCheck, KeyRound, X, Receipt, History, UtensilsCrossed, Menu, HelpCircle, ScrollText
+  Wallet, Users, LogOut, UserCheck, KeyRound, X, Receipt, History, UtensilsCrossed, Menu
 } from 'lucide-react';
 import { toast, confirmDialog, errText } from '../ui/feedback';
 import { hasPerm, isSuperAdmin, type Perm } from '../lib/perms';
+import PageGuide from './PageGuide';
 
 type NavLinkDef = {
   to: string; icon: any; label: string;
   perm?: Perm;        // butuh izin ini (sub-admin); super admin selalu boleh
   superOnly?: boolean; // hanya Super Admin
-  always?: boolean;    // selalu tampil (mis. Bantuan)
 };
 
 const navItems: { section: string; links: NavLinkDef[] }[] = [
   {
-    section: 'Overview',
+    section: 'Ringkasan',
     links: [
       { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', perm: 'dashboard' },
       { to: '/transactions', icon: Receipt, label: 'Transaksi', perm: 'transactions' },
@@ -45,14 +45,11 @@ const navItems: { section: string; links: NavLinkDef[] }[] = [
     section: 'Sistem',
     links: [
       { to: '/employees', icon: UserCheck, label: 'Karyawan & Admin', superOnly: true },
-      { to: '/audit-log', icon: ScrollText, label: 'Log Aktivitas', perm: 'audit-log' },
-      { to: '/bantuan', icon: HelpCircle, label: 'Panduan / Bantuan', always: true },
     ]
   },
 ];
 
 function canSeeLink(l: NavLinkDef): boolean {
-  if (l.always) return true;
   if (l.superOnly) return isSuperAdmin();
   if (l.perm) return hasPerm(l.perm);
   return true;
@@ -230,15 +227,10 @@ export default function Layout() {
               {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </div>
           </div>
-          <div className="navbar-right">
-            <div className="navbar-badge">
-              <div className="live-dot" />
-              Sistem Online
-            </div>
-          </div>
         </header>
 
         <div className="page-content">
+          <PageGuide path={location.pathname} />
           <Outlet />
         </div>
       </main>

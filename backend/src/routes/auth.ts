@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { getDb } from '../database';
-import sha256 from 'sha256';
+import { matchesPin } from '../lib/pin';
 import { JWT_SECRET } from '../middleware/secret';
 import { loginRateLimit } from '../middleware/rateLimit';
 import { validate } from '../middleware/validate';
@@ -21,27 +21,23 @@ router.post('/login', loginRateLimit(), validate(loginPinSchema), async (req: Re
 
   // Cari karyawan aktif — coba bcrypt dulu, fallback ke SHA-256 (legacy) lalu migrasi.
   const employees = await db.all('SELECT * FROM employees WHERE is_active = 1 AND pin IS NOT NULL') as any[];
-  let employee: any = null;
-
+  const matches: any[] = [];
   for (const emp of employees) {
-    // PIN baru (bcrypt) dimulai dengan $2a$ atau $2b$
-    if (emp.pin && emp.pin.startsWith('$2')) {
-      const match = await bcrypt.compare(pin, emp.pin);
-      if (match) { employee = emp; break; }
-    } else if (emp.pin) {
-      // Legacy SHA-256 hash — cocokkan lalu migrasi ke bcrypt
-      if (emp.pin === sha256(pin)) {
-        employee = emp;
-        // Migrasi otomatis ke bcrypt
-        const bcryptPin = await bcrypt.hash(pin, 10);
-        await db.run('UPDATE employees SET pin = ? WHERE id = ?', [bcryptPin, emp.id]);
-        break;
-      }
-    }
+    if (await matchesPin(pin, emp.pin)) matches.push(emp);
   }
+
+  if (matches.length > 1) {
+    return res.status(409).json({ error: 'PIN dipakai lebih dari satu akun. Minta SuperAdmin mengganti PIN tiap anggota.' });
+  }
+  const employee = matches[0];
 
   if (!employee) {
     return res.status(401).json({ error: 'PIN tidak valid' });
+  }
+
+  if (employee.pin && !employee.pin.startsWith('$2')) {
+    const bcryptPin = await bcrypt.hash(pin, 10);
+    await db.run('UPDATE employees SET pin = ? WHERE id = ?', [bcryptPin, employee.id]);
   }
 
   // Admin/owner hanya boleh login lewat Website, bukan aplikasi kasir.

@@ -3,6 +3,10 @@ import { getDb } from '../database';
 import { requirePerm } from '../middleware/permissions';
 
 const router = Router();
+const itemConsignor = 'CASE WHEN ti.commission_mode IS NULL THEN p.consignor_id ELSE ti.consignor_id END';
+const storeCommission = `CASE WHEN COALESCE(ti.commission_mode, p.commission_mode, 'percent') = 'amount'
+  THEN LEAST(ti.total_price, ti.quantity * COALESCE(ti.commission_value, p.commission_amount, 0))
+  ELSE ti.total_price * COALESCE(ti.commission_value, p.commission_percent, 0) / 100.0 END`;
 
 // GET /api/dashboard/summary - Today's overview
 router.get('/summary', requirePerm('dashboard'), async (_req: Request, res: Response) => {
@@ -127,17 +131,17 @@ router.get('/profit-loss', requirePerm('laba-rugi'), async (req: Request, res: R
     JOIN transactions t ON ti.transaction_id = t.id
     JOIN products p ON ti.product_id = p.id
     WHERE COALESCE(t.paid_at, t.created_at)::date >= ? AND COALESCE(t.paid_at, t.created_at)::date <= ? AND t.is_void = 0 AND t.payment_status = 'completed'
-      AND p.consignor_id IS NULL
+      AND ${itemConsignor} IS NULL
   `, [startDate, endDate]) as any;
 
   // Bagian penitip = penjualan barang titipan dikurangi komisi toko
   const consignorShare = await db.get(`
-    SELECT COALESCE(SUM(ti.total_price * (1 - COALESCE(p.commission_percent, 0) / 100.0)), 0) as total
+    SELECT COALESCE(SUM(ti.total_price - (${storeCommission})), 0) as total
     FROM transaction_items ti
     JOIN transactions t ON ti.transaction_id = t.id
     JOIN products p ON ti.product_id = p.id
     WHERE COALESCE(t.paid_at, t.created_at)::date >= ? AND COALESCE(t.paid_at, t.created_at)::date <= ? AND t.is_void = 0 AND t.payment_status = 'completed'
-      AND p.consignor_id IS NOT NULL
+      AND ${itemConsignor} IS NOT NULL
   `, [startDate, endDate]) as any;
 
   const expenses = await db.get(`
@@ -150,9 +154,9 @@ router.get('/profit-loss', requirePerm('laba-rugi'), async (req: Request, res: R
     SELECT ti.product_name,
            SUM(ti.quantity) as quantity,
            SUM(ti.total_price) as subtotal,
-           SUM(CASE WHEN p.consignor_id IS NULL
+           SUM(CASE WHEN ${itemConsignor} IS NULL
                     THEN ti.quantity * p.cost_price
-                    ELSE ti.total_price * (1 - COALESCE(p.commission_percent, 0) / 100.0) END) as cogs
+                    ELSE ti.total_price - (${storeCommission}) END) as cogs
     FROM transaction_items ti
     JOIN transactions t ON ti.transaction_id = t.id
     JOIN products p ON ti.product_id = p.id

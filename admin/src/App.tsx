@@ -13,8 +13,6 @@ import Purchases from './pages/Purchases';
 import Expenses from './pages/Expenses';
 import Consignors from './pages/Consignors';
 import Employees from './pages/Employees';
-import Bantuan from './pages/Bantuan';
-import AuditLog from './pages/AuditLog';
 import './App.css';
 import axios from 'axios';
 import { FeedbackHost } from './ui/feedback';
@@ -50,7 +48,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 function firstAllowedPath(): string {
   if (isSuperAdmin()) return '/dashboard';
   const hit = PERMISSION_OPTIONS.find(o => hasPerm(o.key));
-  return hit ? `/${hit.key}` : '/bantuan';
+  return hit ? `/${hit.key}` : '/no-access';
 }
 
 // Guard per-rute: jika sub-admin tak punya izin, alihkan ke halaman pertama
@@ -84,8 +82,7 @@ function App() {
           <Route path="expenses" element={<Guard perm="expenses"><Expenses /></Guard>} />
           <Route path="consignors" element={<Guard perm="consignors"><Consignors /></Guard>} />
           <Route path="employees" element={<Guard superOnly><Employees /></Guard>} />
-          <Route path="audit-log" element={<Guard perm="audit-log"><AuditLog /></Guard>} />
-          <Route path="bantuan" element={<Bantuan />} />
+          <Route path="no-access" element={<div className="empty-state"><h2>Belum ada akses halaman</h2><p>Hubungi SuperAdmin untuk mengatur izin akun ini.</p></div>} />
           <Route path="*" element={<div style={{ padding: '40px', textAlign: 'center' }}><h2>404 — Halaman tidak ditemukan</h2></div>} />
         </Route>
       </Routes>

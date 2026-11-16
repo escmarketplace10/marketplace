@@ -3,7 +3,7 @@
 
 export type Perm =
   | 'dashboard' | 'transactions' | 'laba-rugi' | 'products' | 'stocking'
-  | 'stock-ledger' | 'suppliers' | 'purchases' | 'expenses' | 'consignors' | 'audit-log';
+  | 'stock-ledger' | 'suppliers' | 'purchases' | 'expenses' | 'consignors';
 
 // Daftar izin yang bisa dicentang super admin (harus sama dengan backend).
 // "employees" tidak ada di sini: kelola akun hanya untuk Super Admin.
@@ -18,7 +18,6 @@ export const PERMISSION_OPTIONS: { key: Perm; label: string }[] = [
   { key: 'purchases', label: 'Pembelian' },
   { key: 'expenses', label: 'Biaya Operasional' },
   { key: 'consignors', label: 'Penitip / Margin' },
-  { key: 'audit-log', label: 'Log Aktivitas' },
 ];
 
 export function getAdminUser(): any {

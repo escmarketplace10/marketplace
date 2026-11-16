@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Users, Plus, Search, Edit2, Percent } from 'lucide-react';
+import { Users, Plus, Search, Edit2 } from 'lucide-react';
 import { toast } from '../ui/feedback';
 
 
@@ -12,6 +12,9 @@ export default function Consignors() {
   const [modal, setModal] = useState<any>(null);
   const [form, setForm] = useState({ name: '', phone: '', notes: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [month, setMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });
+  const [monthly, setMonthly] = useState<any[]>([]);
+  const [monthlyError, setMonthlyError] = useState('');
 
   const token = localStorage.getItem('admin_token');
   const headers = { Authorization: `Bearer ${token}` };
@@ -24,6 +27,14 @@ export default function Consignors() {
   };
 
   useEffect(() => { load(); }, []);
+  useEffect(() => {
+    let active = true;
+    setMonthlyError('');
+    axios.get('/api/consignors/monthly', { headers, params: { month } })
+      .then(r => { if (active) setMonthly(r.data.rows || []); })
+      .catch(() => { if (active) { setMonthly([]); setMonthlyError('Rekap bulanan belum dapat dimuat.'); } });
+    return () => { active = false; };
+  }, [month]);
 
   const openAdd = () => { setForm({ name: '', phone: '', notes: '' }); setModal('add'); };
   const openEdit = (c: any) => { setForm({ name: c.name, phone: c.phone || '', notes: c.notes || '' }); setModal(c); };
@@ -55,20 +66,27 @@ export default function Consignors() {
         <button className="btn btn-primary" onClick={openAdd}><Plus size={16} /> Tambah Penitip</button>
       </div>
 
-      {/* Info Box */}
-      <div className="card" style={{ marginBottom: 24, background: 'linear-gradient(135deg, rgba(99,102,241,0.05), rgba(99,102,241,0.02))', border: '1px solid rgba(99,102,241,0.2)' }}>
-        <div className="card-body" style={{ padding: '16px 20px' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-            <span style={{ fontSize: 24 }}>💡</span>
-            <div>
-              <div style={{ fontWeight: 700, color: 'var(--primary)', marginBottom: 4 }}>Cara Kerja Sistem Penitip</div>
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-                Setiap produk di menu dapat ditautkan ke seorang penitip beserta persentase komisi-nya. 
-                Saat produk terjual, sistem akan otomatis menghitung bagian keuntungan penitip dan sisanya menjadi pendapatan toko.
-                Anda bisa mengatur komisi per-produk saat menambah/mengedit produk di aplikasi kasir.
-              </div>
-            </div>
-          </div>
+      <div className="card" style={{ marginBottom: 24 }}>
+        <div className="card-header">
+          <div className="card-title">Rekap penjualan titipan</div>
+          <input type="month" className="form-input" style={{ width: 180 }} aria-label="Bulan rekap" value={month} onChange={e => setMonth(e.target.value)} />
+        </div>
+        <div className="card-body" style={{ paddingTop: 0 }}>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Hanya transaksi yang sudah dibayar. Margin toko dihitung dari persen penjualan atau nominal per item sesuai pengaturan saat pesanan dibuat.</p>
+          {monthlyError ? <p role="alert">{monthlyError}</p> : <div className="table-container" style={{ boxShadow: 'none' }}>
+            <table>
+              <thead><tr><th>Penitip</th><th style={{ textAlign: 'right' }}>Item terjual</th><th style={{ textAlign: 'right' }}>Penjualan</th><th style={{ textAlign: 'right' }}>Margin toko</th><th style={{ textAlign: 'right' }}>Bagian penitip</th></tr></thead>
+              <tbody>
+                {monthly.map(c => <tr key={c.id}>
+                  <td>{c.name}</td><td style={{ textAlign: 'right' }}>{Number(c.quantity || 0).toLocaleString('id-ID')}</td>
+                  <td style={{ textAlign: 'right' }}>{Number(c.total_sales || 0).toLocaleString('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })}</td>
+                  <td style={{ textAlign: 'right' }}>{Number(c.commission_amount || 0).toLocaleString('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })}</td>
+                  <td style={{ textAlign: 'right' }}>{Number(c.payable_amount || 0).toLocaleString('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })}</td>
+                </tr>)}
+                {monthly.length === 0 && <tr><td colSpan={5}>Belum ada penitip untuk ditampilkan.</td></tr>}
+              </tbody>
+            </table>
+          </div>}
         </div>
       </div>
 
@@ -161,10 +179,7 @@ export default function Consignors() {
                   />
                 </div>
               ))}
-              <div style={{ background: 'rgba(99,102,241,0.05)', borderRadius: 10, padding: '14px', fontSize: 13, color: 'var(--text-secondary)', border: '1px solid rgba(99,102,241,0.12)' }}>
-                <Percent size={14} style={{ display: 'inline', marginRight: 6, color: 'var(--primary)' }} />
-                <strong>Catatan:</strong> Persentase komisi diatur per-produk di aplikasi kasir, bukan di sini.
-              </div>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>SuperAdmin mengatur margin persen atau Rp per item pada produk di halaman Kelola Menu.</p>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setModal(null)}>Batal</button>

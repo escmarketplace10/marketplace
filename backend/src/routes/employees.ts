@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import { requireAdminOnly } from '../middleware/roleGuard';
 import { recordAudit } from '../lib/audit';
 import { PERMISSION_KEYS } from '../middleware/permissions';
+import { pinUsedByAnother } from '../lib/pin';
 
 const router = Router();
 
@@ -71,6 +72,7 @@ router.post('/', requireAdminOnly, async (req: Request, res: Response) => {
   // Kasir / Petugas Stok: pakai PIN.
   if (!pin) return res.status(400).json({ error: 'PIN wajib diisi' });
   if (!/^\d{4,6}$/.test(pin)) return res.status(400).json({ error: 'PIN harus 4-6 digit angka' });
+  if (await pinUsedByAnother(db, pin)) return res.status(409).json({ error: 'PIN sudah digunakan anggota lain. Pilih PIN berbeda.' });
   const hashedPin = await bcrypt.hash(pin, 10);
   await db.run('INSERT INTO employees (id, name, pin, role, phone, commission_rate) VALUES (?, ?, ?, ?, ?, ?)', [id, name, hashedPin, r, phone || null, commission_rate || 0]);
   await recordAudit(req, { action: 'create', entity: 'employee', entity_id: id, summary: `Menambah karyawan "${name}" (${r})` });
@@ -96,6 +98,9 @@ router.put('/:id', requireAdminOnly, async (req: Request, res: Response) => {
   }
   if (pin && !/^\d{4,6}$/.test(pin)) {
     return res.status(400).json({ error: 'PIN harus 4-6 digit angka' });
+  }
+  if (pin && await pinUsedByAnother(db, pin, req.params.id)) {
+    return res.status(409).json({ error: 'PIN sudah digunakan anggota lain. Pilih PIN berbeda.' });
   }
 
   const hashedPin = pin ? await bcrypt.hash(pin, 10) : null;

@@ -38,11 +38,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     try {
       final trx = await Api.transaction(id);
       if (!mounted) return;
-      final canVoid = context.read<Session>().can('reports');
+      final canVoid = context.read<Session>().role == 'cashier';
       showModalBottomSheet(
         context: context,
         isScrollControlled: true,
-        builder: (_) => _DetailSheet(trx: trx, canVoid: canVoid, onVoided: _load),
+        builder: (_) =>
+            _DetailSheet(trx: trx, canVoid: canVoid, onVoided: _load),
       );
     } catch (e) {
       if (mounted) showSnack(context, e.toString(), error: true);
@@ -56,36 +57,69 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       body: _loading
           ? const Loading()
           : _trx.isEmpty
-              ? const EmptyState(icon: Icons.receipt_long, message: 'Belum ada transaksi')
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: _trx.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 6),
-                    itemBuilder: (_, i) {
-                      final t = _trx[i];
-                      final isVoid = toInt(t['is_void']) == 1;
-                      return Card(
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: (isVoid ? AppColors.danger : AppColors.primary).withValues(alpha: 0.12),
-                            child: Icon(isVoid ? Icons.cancel : Icons.receipt, color: isVoid ? AppColors.danger : AppColors.primary),
-                          ),
-                          title: Text('${t['transaction_name'] ?? t['receipt_number']} · ${t['employee_name'] ?? '-'}',
-                              style: TextStyle(fontWeight: FontWeight.w700, decoration: isVoid ? TextDecoration.lineThrough : null)),
-                          subtitle: Text('${formatDateTime(t['created_at'])} · ${t['payment_method'] ?? ''}'),
-                          trailing: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
-                            Text(rupiah(toDouble(t['grand_total'])), style: const TextStyle(fontWeight: FontWeight.w800)),
-                            Text(t['payment_status'] == 'completed' ? 'Lunas' : 'Belum dibayar',
-                                style: const TextStyle(fontSize: 11, color: AppColors.muted)),
-                          ]),
-                          onTap: () => _openDetail(t['id'].toString()),
+          ? const EmptyState(
+              icon: Icons.receipt_long,
+              message: 'Belum ada transaksi',
+            )
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView.separated(
+                padding: const EdgeInsets.all(12),
+                itemCount: _trx.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 6),
+                itemBuilder: (_, i) {
+                  final t = _trx[i];
+                  final isVoid = toInt(t['is_void']) == 1;
+                  return Card(
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor:
+                            (isVoid ? AppColors.danger : AppColors.primary)
+                                .withValues(alpha: 0.12),
+                        child: Icon(
+                          isVoid ? Icons.cancel : Icons.receipt,
+                          color: isVoid ? AppColors.danger : AppColors.primary,
                         ),
-                      );
-                    },
-                  ),
-                ),
+                      ),
+                      title: Text(
+                        '${t['transaction_name'] ?? t['receipt_number']} · ${t['employee_name'] ?? '-'}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          decoration: isVoid
+                              ? TextDecoration.lineThrough
+                              : null,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '${formatDateTime(t['created_at'])} · ${t['payment_method'] ?? ''}',
+                      ),
+                      trailing: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            rupiah(toDouble(t['grand_total'])),
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          Text(
+                            isVoid
+                                ? 'Void'
+                                : t['payment_status'] == 'completed'
+                                ? 'Sudah bayar'
+                                : 'Belum dibayar',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                      onTap: () => _openDetail(t['id'].toString()),
+                    ),
+                  );
+                },
+              ),
+            ),
     );
   }
 }
@@ -94,7 +128,11 @@ class _DetailSheet extends StatefulWidget {
   final Map<String, dynamic> trx;
   final bool canVoid;
   final VoidCallback onVoided;
-  const _DetailSheet({required this.trx, required this.canVoid, required this.onVoided});
+  const _DetailSheet({
+    required this.trx,
+    required this.canVoid,
+    required this.onVoided,
+  });
 
   @override
   State<_DetailSheet> createState() => _DetailSheetState();
@@ -113,7 +151,11 @@ class _DetailSheetState extends State<_DetailSheet> {
   Future<void> _mark(Map<String, dynamic> item, bool delivered) async {
     setState(() => _working = true);
     try {
-      await Api.markDelivered(trx['id'].toString(), item['id'].toString(), delivered ? toDouble(item['quantity']) : 0);
+      await Api.markDelivered(
+        trx['id'].toString(),
+        item['id'].toString(),
+        delivered ? toDouble(item['quantity']) : 0,
+      );
       final updated = await Api.transaction(trx['id'].toString());
       if (mounted) setState(() => trx = updated);
     } catch (e) {
@@ -124,47 +166,74 @@ class _DetailSheetState extends State<_DetailSheet> {
   }
 
   Future<void> _pay() async {
-    final cashCtrl = TextEditingController(text: toDouble(trx['grand_total']).toStringAsFixed(0));
+    final cashCtrl = TextEditingController(
+      text: toDouble(trx['grand_total']).toStringAsFixed(0),
+    );
     String method = 'cash';
     bool keepChange = false;
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setDialog) => AlertDialog(
-        title: const Text('Konfirmasi pembayaran'),
-        content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text((trx['transaction_name'] ?? '').toString(), style: const TextStyle(fontWeight: FontWeight.w700)),
-          Text(rupiah(toDouble(trx['grand_total']))),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            initialValue: method,
-            decoration: const InputDecoration(labelText: 'Metode pembayaran'),
-            items: const [
-              DropdownMenuItem(value: 'cash', child: Text('Tunai')),
-              DropdownMenuItem(value: 'qris', child: Text('QRIS')),
-              DropdownMenuItem(value: 'card', child: Text('Kartu')),
-              DropdownMenuItem(value: 'ewallet', child: Text('E-Wallet')),
-            ],
-            onChanged: (v) => setDialog(() => method = v ?? 'cash'),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialog) => AlertDialog(
+          title: const Text('Konfirmasi pembayaran'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  (trx['transaction_name'] ?? '').toString(),
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                Text(rupiah(toDouble(trx['grand_total']))),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: method,
+                  decoration: const InputDecoration(
+                    labelText: 'Metode pembayaran',
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'cash', child: Text('Tunai')),
+                    DropdownMenuItem(value: 'qris', child: Text('QRIS')),
+                    DropdownMenuItem(value: 'card', child: Text('Kartu')),
+                    DropdownMenuItem(value: 'ewallet', child: Text('E-Wallet')),
+                  ],
+                  onChanged: (v) => setDialog(() => method = v ?? 'cash'),
+                ),
+                if (method == 'cash') ...[
+                  TextField(
+                    controller: cashCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Uang diterima',
+                    ),
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: keepChange,
+                    title: const Text('Uang lebih masuk kas'),
+                    onChanged: (v) => setDialog(() => keepChange = v ?? false),
+                  ),
+                ],
+              ],
+            ),
           ),
-          if (method == 'cash') ...[
-            TextField(controller: cashCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Uang diterima')),
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              value: keepChange,
-              title: const Text('Uang lebih masuk kas'),
-              onChanged: (v) => setDialog(() => keepChange = v ?? false),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, {
+                'payment_method': method,
+                'cash_amount': double.tryParse(cashCtrl.text),
+                'keep_change': keepChange,
+              }),
+              child: const Text('Konfirmasi Pembayaran'),
             ),
           ],
-        ])),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, {
-            'payment_method': method,
-            'cash_amount': double.tryParse(cashCtrl.text),
-            'keep_change': keepChange,
-          }), child: const Text('Konfirmasi Lunas')),
-        ],
-      )),
+        ),
+      ),
     );
     cashCtrl.dispose();
     if (result == null || !mounted) return;
@@ -178,11 +247,21 @@ class _DetailSheetState extends State<_DetailSheet> {
       navigator.pop();
       final paid = Map<String, dynamic>.from(response['transaction']);
       if (!dialogContext.mounted) return;
-      showDialog(context: dialogContext, builder: (ctx) => AlertDialog(
-        title: const Text('Transaksi Lunas'),
-        content: Text('${paid['transaction_name']}\n${paid['receipt_number']}\n${rupiah(toDouble(paid['grand_total']))}'),
-        actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Selesai'))],
-      ));
+      showDialog(
+        context: dialogContext,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Sudah Bayar'),
+          content: Text(
+            '${paid['transaction_name']}\n${paid['receipt_number']}\n${rupiah(toDouble(paid['grand_total']))}',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Selesai'),
+            ),
+          ],
+        ),
+      );
     } catch (e) {
       if (mounted) showSnack(context, e.toString(), error: true);
     } finally {
@@ -191,22 +270,39 @@ class _DetailSheetState extends State<_DetailSheet> {
   }
 
   Future<void> _void(BuildContext context) async {
-    final voidBy = context.read<Session>().employeeId;
     final reasonCtrl = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Batalkan Transaksi (Void)'),
-        content: TextField(controller: reasonCtrl, decoration: const InputDecoration(labelText: 'Alasan void')),
+        content: TextField(
+          controller: reasonCtrl,
+          decoration: const InputDecoration(labelText: 'Alasan void'),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
-          FilledButton(style: FilledButton.styleFrom(backgroundColor: AppColors.danger), onPressed: () => Navigator.pop(ctx, true), child: const Text('Void')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Void'),
+          ),
         ],
       ),
     );
+    if (ok == true && reasonCtrl.text.trim().isEmpty) {
+      if (context.mounted)
+        showSnack(context, 'Alasan pembatalan wajib diisi.', error: true);
+      reasonCtrl.dispose();
+      return;
+    }
     if (ok == true) {
       try {
-        await Api.voidTransaction(trx['id'].toString(), {'reason': reasonCtrl.text, 'void_by': voidBy});
+        await Api.voidTransaction(trx['id'].toString(), {
+          'reason': reasonCtrl.text.trim(),
+        });
         if (context.mounted) {
           Navigator.pop(context);
           widget.onVoided();
@@ -216,6 +312,7 @@ class _DetailSheetState extends State<_DetailSheet> {
         if (context.mounted) showSnack(context, e.toString(), error: true);
       }
     }
+    reasonCtrl.dispose();
   }
 
   @override
@@ -223,8 +320,14 @@ class _DetailSheetState extends State<_DetailSheet> {
     final items = (trx['items'] as List?) ?? [];
     final isVoid = toInt(trx['is_void']) == 1;
     final isOpen = trx['payment_status'] == 'pending' && !isVoid;
+    final isPaid = trx['payment_status'] == 'completed';
     final role = context.read<Session>().role;
-    final complete = items.isNotEmpty && items.every((it) => toDouble(it['delivered_quantity']) >= toDouble(it['quantity']));
+    final complete =
+        items.isNotEmpty &&
+        items.every(
+          (it) =>
+              toDouble(it['delivered_quantity']) >= toDouble(it['quantity']),
+        );
     return SizedBox(
       height: MediaQuery.of(context).size.height * 0.8,
       child: Padding(
@@ -232,26 +335,63 @@ class _DetailSheetState extends State<_DetailSheet> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text((trx['transaction_name'] ?? trx['receipt_number']).toString(), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+            Text(
+              (trx['transaction_name'] ?? trx['receipt_number']).toString(),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            ),
             Text(trx['receipt_number'].toString()),
-            Text('${formatDateTime(trx['created_at'])} · ${trx['employee_name'] ?? ''}', style: const TextStyle(color: AppColors.muted)),
-            if (isVoid) Text('DIBATALKAN: ${trx['void_reason'] ?? ''}', style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w700)),
+            Text(
+              isVoid
+                  ? 'Void'
+                  : isPaid
+                  ? 'Sudah bayar'
+                  : 'Belum dibayar',
+              style: TextStyle(
+                color: isVoid ? AppColors.danger : AppColors.ink,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            Text(
+              '${formatDateTime(trx['created_at'])} · ${trx['employee_name'] ?? ''}',
+              style: const TextStyle(color: AppColors.muted),
+            ),
+            if (isVoid)
+              Text(
+                'DIBATALKAN: ${trx['void_reason'] ?? ''}',
+                style: const TextStyle(
+                  color: AppColors.danger,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             const Divider(),
             Expanded(
               child: ListView(
                 children: [
-                  ...items.map((it) => ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: Text('${toInt(it['quantity'])}x ${it['product_name']}'),
-                        subtitle: Text('${toInt(it['delivered_quantity'])}/${toInt(it['quantity'])} terantar'),
-                        trailing: isOpen && role == 'cashier'
-                            ? Checkbox(
-                                value: toDouble(it['delivered_quantity']) >= toDouble(it['quantity']),
-                                onChanged: _working ? null : (v) => _mark(Map<String, dynamic>.from(it), v ?? false),
-                              )
-                            : Text(rupiah(toDouble(it['total_price']))),
-                      )),
+                  ...items.map(
+                    (it) => ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        '${toInt(it['quantity'])}x ${it['product_name']}',
+                      ),
+                      subtitle: Text(
+                        '${toInt(it['delivered_quantity'])}/${toInt(it['quantity'])} terantar',
+                      ),
+                      trailing: isOpen && role == 'cashier'
+                          ? Checkbox(
+                              value:
+                                  toDouble(it['delivered_quantity']) >=
+                                  toDouble(it['quantity']),
+                              onChanged: _working
+                                  ? null
+                                  : (v) => _mark(
+                                      Map<String, dynamic>.from(it),
+                                      v ?? false,
+                                    ),
+                            )
+                          : Text(rupiah(toDouble(it['total_price']))),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -259,16 +399,28 @@ class _DetailSheetState extends State<_DetailSheet> {
             _row('Subtotal', rupiah(toDouble(trx['subtotal']))),
             _row('Diskon', '-${rupiah(toDouble(trx['discount_total']))}'),
             _row('Total', rupiah(toDouble(trx['grand_total'])), big: true),
-            if (!isOpen) _row('Bayar (${trx['payment_method']})', rupiah(toDouble(trx['cash_amount']))),
-            if (!isOpen) _row('Kembalian', rupiah(toDouble(trx['change_amount']))),
+            if (isPaid)
+              _row(
+                'Bayar (${trx['payment_method']})',
+                rupiah(toDouble(trx['cash_amount'])),
+              ),
+            if (isPaid)
+              _row('Kembalian', rupiah(toDouble(trx['change_amount']))),
             const SizedBox(height: 12),
-            if (isOpen && role == 'cashier') FilledButton(
-              onPressed: _working || !complete ? null : _pay,
-              child: Text(complete ? 'Periksa dan Tutup Bill' : 'Tandai Semua Item Terantar'),
-            ),
+            if (isOpen && role == 'cashier')
+              FilledButton(
+                onPressed: _working || !complete ? null : _pay,
+                child: Text(
+                  complete
+                      ? 'Periksa dan Tutup Bill'
+                      : 'Tandai Semua Item Terantar',
+                ),
+              ),
             if (widget.canVoid && !isVoid)
               OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.danger,
+                ),
                 onPressed: () => _void(context),
                 icon: const Icon(Icons.cancel),
                 label: const Text('Batalkan (Void)'),
@@ -280,10 +432,26 @@ class _DetailSheetState extends State<_DetailSheet> {
   }
 
   Widget _row(String l, String v, {bool big = false}) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text(l, style: TextStyle(fontWeight: big ? FontWeight.w800 : FontWeight.w500, fontSize: big ? 16 : 14)),
-          Text(v, style: TextStyle(fontWeight: FontWeight.w800, fontSize: big ? 16 : 14, color: big ? AppColors.primary : AppColors.ink)),
-        ]),
-      );
+    padding: const EdgeInsets.symmetric(vertical: 2),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          l,
+          style: TextStyle(
+            fontWeight: big ? FontWeight.w800 : FontWeight.w500,
+            fontSize: big ? 16 : 14,
+          ),
+        ),
+        Text(
+          v,
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: big ? 16 : 14,
+            color: big ? AppColors.primary : AppColors.ink,
+          ),
+        ),
+      ],
+    ),
+  );
 }

@@ -5,6 +5,12 @@ import { recordAudit } from '../lib/audit';
 
 const router = Router();
 
+// Nilai pada item adalah snapshot saat pesanan dibuat; produk lama memakai pengaturan saat ini.
+const itemConsignor = 'CASE WHEN ti.commission_mode IS NULL THEN p.consignor_id ELSE ti.consignor_id END';
+const storeCommission = `CASE WHEN COALESCE(ti.commission_mode, p.commission_mode, 'percent') = 'amount'
+  THEN LEAST(ti.total_price, ti.quantity * COALESCE(ti.commission_value, p.commission_amount, 0))
+  ELSE ti.total_price * COALESCE(ti.commission_value, p.commission_percent, 0) / 100.0 END`;
+
 /** Hitung total penjualan/komisi/terutang sejak setoran terakhir (atau sejak awal bila belum pernah setor). */
 async function unsettledSummary(db: any, consignorId: string, until?: string) {
   const last = await db.get('SELECT MAX(period_end) as last_end FROM consignment_settlements WHERE consignor_id = ?', [consignorId]) as any;
@@ -13,11 +19,11 @@ async function unsettledSummary(db: any, consignorId: string, until?: string) {
   let query = `
     SELECT
       COALESCE(SUM(ti.total_price), 0) as total_sales,
-      COALESCE(SUM(ti.total_price * p.commission_percent / 100.0), 0) as commission_amount
+      COALESCE(SUM(${storeCommission}), 0) as commission_amount
     FROM transaction_items ti
     JOIN transactions t ON ti.transaction_id = t.id
     JOIN products p ON ti.product_id = p.id
-    WHERE p.consignor_id = ? AND t.is_void = 0 AND t.payment_status = 'completed' AND COALESCE(t.paid_at, t.created_at) > ?
+    WHERE ${itemConsignor} = ? AND t.is_void = 0 AND t.payment_status = 'completed' AND COALESCE(t.paid_at, t.created_at) > ?
   `;
   const params: any[] = [consignorId, since];
   if (until) { query += ' AND COALESCE(t.paid_at, t.created_at) <= ?'; params.push(until); }
@@ -42,6 +48,37 @@ router.get('/', async (req: Request, res: Response) => {
   return res.json(result);
 });
 
+// GET /api/consignors/monthly?month=YYYY-MM - Hanya penjualan lunas dalam bulan terpilih.
+router.get('/monthly', async (req: Request, res: Response) => {
+  const month = String(req.query.month || '');
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return res.status(400).json({ error: 'Bulan harus berformat YYYY-MM.' });
+  const [year, number] = month.split('-').map(Number);
+  const start = `${month}-01`;
+  const end = `${year + (number === 12 ? 1 : 0)}-${String(number === 12 ? 1 : number + 1).padStart(2, '0')}-01`;
+  const db = getDb();
+  const rows = await db.all(`
+    SELECT c.id, c.name, COALESCE(s.quantity, 0) AS quantity,
+           COALESCE(s.total_sales, 0) AS total_sales,
+           COALESCE(s.commission_amount, 0) AS commission_amount,
+           COALESCE(s.total_sales - s.commission_amount, 0) AS payable_amount
+    FROM consignors c
+    LEFT JOIN (
+      SELECT ${itemConsignor} AS consignor_id, SUM(ti.quantity) AS quantity,
+             SUM(ti.total_price) AS total_sales, SUM(${storeCommission}) AS commission_amount
+      FROM transaction_items ti
+      JOIN transactions t ON t.id = ti.transaction_id
+      JOIN products p ON p.id = ti.product_id
+      WHERE t.is_void = 0 AND t.payment_status = 'completed'
+        AND COALESCE(t.paid_at, t.created_at) >= ?
+        AND COALESCE(t.paid_at, t.created_at) < ?
+      GROUP BY ${itemConsignor}
+    ) s ON s.consignor_id = c.id
+    WHERE c.is_active = 1 OR s.consignor_id IS NOT NULL
+    ORDER BY c.name ASC
+  `, [start, end]);
+  return res.json({ month, rows });
+});
+
 // GET /api/consignors/:id - Satu penitip + rekap
 router.get('/:id', async (req: Request, res: Response) => {
   const db = getDb();
@@ -58,13 +95,14 @@ router.get('/:id/report', async (req: Request, res: Response) => {
   const items = await db.all(`
     SELECT t.receipt_number, COALESCE(t.paid_at, t.created_at) as created_at,
            ti.product_name, ti.quantity, ti.unit_price, ti.total_price,
-           p.commission_percent,
-           (ti.total_price * p.commission_percent / 100.0) as commission_amount,
-           (ti.total_price - (ti.total_price * p.commission_percent / 100.0)) as payable_amount
+           COALESCE(ti.commission_mode, p.commission_mode, 'percent') AS commission_mode,
+           COALESCE(ti.commission_value, CASE WHEN p.commission_mode = 'amount' THEN p.commission_amount ELSE p.commission_percent END, 0) AS commission_value,
+           (${storeCommission}) as commission_amount,
+           (ti.total_price - (${storeCommission})) as payable_amount
     FROM transaction_items ti
     JOIN transactions t ON ti.transaction_id = t.id
     JOIN products p ON ti.product_id = p.id
-    WHERE p.consignor_id = ? AND t.is_void = 0 AND t.payment_status = 'completed' AND COALESCE(t.paid_at, t.created_at) > ?
+    WHERE ${itemConsignor} = ? AND t.is_void = 0 AND t.payment_status = 'completed' AND COALESCE(t.paid_at, t.created_at) > ?
     ORDER BY COALESCE(t.paid_at, t.created_at) ASC
   `, [req.params.id, summary.since]);
 

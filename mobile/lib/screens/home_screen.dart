@@ -45,7 +45,10 @@ class _HomeScreenState extends State<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _checkPayments();
     });
-    _paymentTimer = Timer.periodic(const Duration(seconds: 15), (_) => _checkPayments());
+    _paymentTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => _checkPayments(),
+    );
   }
 
   @override
@@ -55,15 +58,26 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _checkPayments() async {
-    if (!mounted || _checkingPayments || context.read<Session>().role != 'waiter') return;
+    if (!mounted ||
+        _checkingPayments ||
+        context.read<Session>().role != 'waiter')
+      return;
     _checkingPayments = true;
     try {
       final orders = await Api.transactions(params: {'limit': 100});
-      final paid = orders.where((t) => t['payment_status'] == 'completed').map((t) => t['id'].toString()).toSet();
+      final paid = orders
+          .where((t) => t['payment_status'] == 'completed')
+          .map((t) => t['id'].toString())
+          .toSet();
       if (_paidOrders != null) {
         for (final order in orders) {
-          if (order['payment_status'] == 'completed' && !_paidOrders!.contains(order['id'].toString())) {
-            if (mounted) showSnack(context, 'Transaksi ${order['transaction_name'] ?? order['receipt_number']} sudah lunas.');
+          if (order['payment_status'] == 'completed' &&
+              !_paidOrders!.contains(order['id'].toString())) {
+            if (mounted)
+              showSnack(
+                context,
+                'Transaksi ${order['transaction_name'] ?? order['receipt_number']} sudah lunas.',
+              );
           }
         }
       }
@@ -77,18 +91,73 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final List<_NavItem> _all = [
     _NavItem('pos', 'Pesanan', Icons.point_of_sale, () => const PosScreen()),
-    _NavItem('dashboard', 'Dashboard', Icons.dashboard_rounded, () => const DashboardScreen()),
+    _NavItem(
+      'dashboard',
+      'Dashboard',
+      Icons.dashboard_rounded,
+      () => const DashboardScreen(),
+    ),
     _NavItem('menu', 'Menu', Icons.restaurant_menu, () => const MenuScreen()),
-    _NavItem('inventory', 'Stok', Icons.inventory_2_rounded, () => const InventoryScreen()),
-    _NavItem('transactions', 'Transaksi', Icons.receipt_long, () => const TransactionsScreen()),
-    _NavItem('stock_check', 'Cek Stok', Icons.fact_check_rounded, () => const CashierOpnameScreen()),
-    _NavItem('customers', 'Pelanggan', Icons.groups_rounded, () => const CustomersScreen()),
-    _NavItem('reports', 'Laporan', Icons.analytics_rounded, () => const ReportsScreen()),
-    _NavItem('employees', 'Karyawan', Icons.badge_rounded, () => const EmployeesScreen()),
-    _NavItem('suppliers', 'Supplier', Icons.local_shipping_rounded, () => const SuppliersScreen()),
-    _NavItem('consignors', 'Penitip', Icons.handshake_rounded, () => const ConsignorsScreen()),
-    _NavItem('purchase_orders', 'Pembelian', Icons.shopping_cart_checkout, () => const PurchaseOrdersScreen()),
-    _NavItem('expenses', 'Biaya', Icons.payments_rounded, () => const ExpensesScreen()),
+    _NavItem(
+      'inventory',
+      'Stok',
+      Icons.inventory_2_rounded,
+      () => const InventoryScreen(),
+    ),
+    _NavItem(
+      'transactions',
+      'Transaksi',
+      Icons.receipt_long,
+      () => const TransactionsScreen(),
+    ),
+    _NavItem(
+      'stock_check',
+      'Cek Stok',
+      Icons.fact_check_rounded,
+      () => const CashierOpnameScreen(),
+    ),
+    _NavItem(
+      'customers',
+      'Pelanggan',
+      Icons.groups_rounded,
+      () => const CustomersScreen(),
+    ),
+    _NavItem(
+      'reports',
+      'Laporan',
+      Icons.analytics_rounded,
+      () => const ReportsScreen(),
+    ),
+    _NavItem(
+      'employees',
+      'Karyawan',
+      Icons.badge_rounded,
+      () => const EmployeesScreen(),
+    ),
+    _NavItem(
+      'suppliers',
+      'Supplier',
+      Icons.local_shipping_rounded,
+      () => const SuppliersScreen(),
+    ),
+    _NavItem(
+      'consignors',
+      'Penitip',
+      Icons.handshake_rounded,
+      () => const ConsignorsScreen(),
+    ),
+    _NavItem(
+      'purchase_orders',
+      'Pembelian',
+      Icons.shopping_cart_checkout,
+      () => const PurchaseOrdersScreen(),
+    ),
+    _NavItem(
+      'expenses',
+      'Biaya',
+      Icons.payments_rounded,
+      () => const ExpensesScreen(),
+    ),
   ];
 
   late List<_NavItem> _items;
@@ -100,19 +169,39 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_index >= _items.length) _index = 0;
 
     final isWide = MediaQuery.of(context).size.width >= 600;
+    final hasOverflowMenu = !isWide && _items.length > 5;
     final current = _items[_index];
 
     return Scaffold(
-      drawer: isWide ? null : _MobileDrawer(items: _items, index: _index, onSelect: (i) => setState(() => _index = i)),
+      drawer: hasOverflowMenu
+          ? _MobileDrawer(
+              items: _items,
+              index: _index,
+              onSelect: (i) => setState(() => _index = i),
+            )
+          : null,
       body: SafeArea(
         child: Row(
           children: [
-            if (isWide) _Sidebar(items: _items, index: _index, onSelect: (i) => setState(() => _index = i)),
+            if (isWide)
+              _Sidebar(
+                items: _items,
+                index: _index,
+                onSelect: (i) => setState(() => _index = i),
+              ),
             Expanded(
               child: Column(
                 children: [
-                  _Header(title: current.label, showMenuButton: !isWide),
-                  Expanded(child: Container(color: AppColors.bg, child: current.build())),
+                  _Header(
+                    title: current.label,
+                    showMenuButton: hasOverflowMenu,
+                  ),
+                  Expanded(
+                    child: Container(
+                      color: AppColors.bg,
+                      child: current.build(),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -126,7 +215,12 @@ class _HomeScreenState extends State<HomeScreen> {
               onDestinationSelected: (i) => setState(() => _index = i),
               destinations: _items
                   .take(5)
-                  .map((i) => NavigationDestination(icon: Icon(i.icon), label: i.label))
+                  .map(
+                    (i) => NavigationDestination(
+                      icon: Icon(i.icon),
+                      label: i.label,
+                    ),
+                  )
                   .toList(),
             ),
     );
@@ -137,7 +231,11 @@ class _Sidebar extends StatelessWidget {
   final List<_NavItem> items;
   final int index;
   final ValueChanged<int> onSelect;
-  const _Sidebar({required this.items, required this.index, required this.onSelect});
+  const _Sidebar({
+    required this.items,
+    required this.index,
+    required this.onSelect,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -152,7 +250,14 @@ class _Sidebar extends StatelessWidget {
             child: Image.asset('assets/logo.png', width: 44, height: 44),
           ),
           const SizedBox(height: 4),
-          const Text('Kantinku', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+          const Text(
+            'Kantinku',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 10),
           Expanded(
             child: ListView.builder(
@@ -163,7 +268,10 @@ class _Sidebar extends StatelessWidget {
                 return InkWell(
                   onTap: () => onSelect(i),
                   child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 3,
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 9),
                     decoration: BoxDecoration(
                       color: active ? AppColors.primary : Colors.transparent,
@@ -171,15 +279,24 @@ class _Sidebar extends StatelessWidget {
                     ),
                     child: Column(
                       children: [
-                        Icon(items[i].icon, size: 22, color: active ? Colors.white : AppColors.sidebarMuted),
+                        Icon(
+                          items[i].icon,
+                          size: 22,
+                          color: active ? Colors.white : AppColors.sidebarMuted,
+                        ),
                         const SizedBox(height: 4),
-                        Text(items[i].label,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                                fontSize: 10,
-                                height: 1.1,
-                                fontWeight: FontWeight.w600,
-                                color: active ? Colors.white : AppColors.sidebarMuted)),
+                        Text(
+                          items[i].label,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 10,
+                            height: 1.1,
+                            fontWeight: FontWeight.w600,
+                            color: active
+                                ? Colors.white
+                                : AppColors.sidebarMuted,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -215,15 +332,32 @@ class _Header extends StatelessWidget {
               icon: const Icon(Icons.menu),
               onPressed: () => Scaffold.of(context).openDrawer(),
             ),
-          Text(title, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: AppColors.ink)),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.w800,
+              color: AppColors.ink,
+            ),
+          ),
           const SizedBox(width: 12),
           const Spacer(),
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(session.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.ink)),
-              Text(session.role, style: const TextStyle(color: AppColors.muted, fontSize: 11)),
+              Text(
+                session.name,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: AppColors.ink,
+                ),
+              ),
+              Text(
+                session.role,
+                style: const TextStyle(color: AppColors.muted, fontSize: 11),
+              ),
             ],
           ),
           const SizedBox(width: 8),
@@ -237,7 +371,16 @@ class _Header extends StatelessWidget {
               if (v == 'logout') session.logout();
             },
             itemBuilder: (_) => const [
-              PopupMenuItem(value: 'logout', child: Row(children: [Icon(Icons.logout, size: 18), SizedBox(width: 8), Text('Keluar')])),
+              PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, size: 18),
+                    SizedBox(width: 8),
+                    Text('Keluar'),
+                  ],
+                ),
+              ),
             ],
           ),
         ],
@@ -250,7 +393,11 @@ class _MobileDrawer extends StatelessWidget {
   final List<_NavItem> items;
   final int index;
   final ValueChanged<int> onSelect;
-  const _MobileDrawer({required this.items, required this.index, required this.onSelect});
+  const _MobileDrawer({
+    required this.items,
+    required this.index,
+    required this.onSelect,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -263,11 +410,27 @@ class _MobileDrawer extends StatelessWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.all(16),
-                child: Row(children: [
-                  ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.asset('assets/logo.png', width: 40, height: 40)),
-                  const SizedBox(width: 10),
-                  const Text('Kantinku', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
-                ]),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.asset(
+                        'assets/logo.png',
+                        width: 40,
+                        height: 40,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    const Text(
+                      'Kantinku',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               Expanded(
                 child: ListView.builder(
@@ -275,8 +438,19 @@ class _MobileDrawer extends StatelessWidget {
                   itemBuilder: (_, i) {
                     final active = i == index;
                     return ListTile(
-                      leading: Icon(items[i].icon, color: active ? AppColors.primary : AppColors.sidebarMuted),
-                      title: Text(items[i].label, style: TextStyle(color: active ? Colors.white : AppColors.sidebarMuted, fontWeight: FontWeight.w600)),
+                      leading: Icon(
+                        items[i].icon,
+                        color: active
+                            ? AppColors.primary
+                            : AppColors.sidebarMuted,
+                      ),
+                      title: Text(
+                        items[i].label,
+                        style: TextStyle(
+                          color: active ? Colors.white : AppColors.sidebarMuted,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       selected: active,
                       onTap: () {
                         onSelect(i);

@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../database';
 import { v4 as uuid } from 'uuid';
-import { requireAdminOnly } from '../middleware/roleGuard';
+import { requireAdminOnly, requireCashierOrAdmin } from '../middleware/roleGuard';
+import { requireSuperAdmin } from '../middleware/permissions';
 import { getActorLabel } from '../middleware/actor';
 import { recordAudit } from '../lib/audit';
 import { validate } from '../middleware/validate';
@@ -88,7 +89,7 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
     return res.status(400).json({ error: 'employee_id and items required' });
   }
   const auth = (req as any).auth;
-  if (auth?.kind !== 'employee' || auth.role !== 'cashier') {
+  if (auth?.kind !== 'employee' || !['waiter', 'cashier'].includes(auth.role)) {
     return res.status(403).json({ error: 'Hanya waiter atau kasir yang dapat mencatat pesanan.' });
   }
   if (employee_id !== auth.id) return res.status(403).json({ error: 'Identitas penginput tidak sesuai sesi.' });
@@ -134,6 +135,11 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
       total_price: totalPrice,
       modifier_details: item.modifier_details ? JSON.stringify(item.modifier_details) : null,
       notes: item.notes || null,
+      consignor_id: product.consignor_id || null,
+      commission_mode: product.consignor_id ? (product.commission_mode || 'percent') : 'none',
+      commission_value: product.consignor_id
+        ? (product.commission_mode === 'amount' ? Number(product.commission_amount || 0) : Number(product.commission_percent || 0))
+        : 0,
       status: 'pending'
     });
   }
@@ -159,11 +165,13 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
     for (const item of trxItems) {
       await tx.run(`
         INSERT INTO transaction_items (id, transaction_id, product_id, product_name,
-          quantity, unit_price, discount_amount, total_price, modifier_details, notes, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          quantity, unit_price, discount_amount, total_price, modifier_details, notes,
+          consignor_id, commission_mode, commission_value, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [item.id, item.transaction_id, item.product_id, item.product_name,
           item.quantity, item.unit_price, item.discount_amount, item.total_price,
-          item.modifier_details, item.notes, item.status]);
+          item.modifier_details, item.notes, item.consignor_id, item.commission_mode,
+          item.commission_value, item.status]);
 
       // Kurangi stok kasir (bukan stok gudang).
       await tx.run(`
@@ -186,7 +194,7 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
 // Checklist jumlah item yang benar-benar sudah diserahkan ke pelanggan.
 router.patch('/:id/items/:itemId/delivery', async (req: Request, res: Response) => {
   const auth = (req as any).auth;
-  if (auth?.kind !== 'employee' || !['waiter', 'cashier'].includes(auth.role)) {
+  if (auth?.kind !== 'employee' || auth.role !== 'cashier') {
     return res.status(403).json({ error: 'Akses ditolak.' });
   }
   const quantity = req.body.delivered_quantity;
@@ -257,10 +265,11 @@ router.post('/:id/pay', async (req: Request, res: Response) => {
   return res.json({ success: true, transaction: paid });
 });
 
-// POST /api/transactions/:id/void - Void a transaction (Admin lewat Website saja)
-router.post('/:id/void', requireAdminOnly, async (req: Request, res: Response) => {
+// POST /api/transactions/:id/void - Kasir atau admin membatalkan transaksi.
+router.post('/:id/void', requireCashierOrAdmin, async (req: Request, res: Response) => {
   const db = getDb();
-  const { reason } = req.body;
+  const reason = String(req.body?.reason || '').trim();
+  if (!reason) return res.status(400).json({ error: 'Alasan pembatalan wajib diisi.' });
   const voidBy = getActorLabel(req);
 
   const trx = await db.get('SELECT * FROM transactions WHERE id = ?', [req.params.id]) as any;
@@ -268,9 +277,12 @@ router.post('/:id/void', requireAdminOnly, async (req: Request, res: Response) =
 
   if (trx.is_void) return res.status(400).json({ error: 'Transaction already voided' });
 
-  await db.transaction(async (tx) => {
+  try {
+    await db.transaction(async (tx) => {
+    const current = await tx.get('SELECT * FROM transactions WHERE id = ? FOR UPDATE', [req.params.id]) as any;
+    if (!current || current.is_void) throw new Error('Transaksi sudah dibatalkan.');
     await tx.run(`UPDATE transactions SET is_void = 1, void_reason = ?, void_by = ?, status = 'voided', updated_at = now() WHERE id = ?`,
-      [reason || 'Tanpa alasan', voidBy, req.params.id]);
+      [reason, voidBy, req.params.id]);
 
     // Restore stock
     const items = await tx.all('SELECT * FROM transaction_items WHERE transaction_id = ?', [req.params.id]) as any[];
@@ -278,13 +290,56 @@ router.post('/:id/void', requireAdminOnly, async (req: Request, res: Response) =
       await tx.run('UPDATE products SET cashier_stock = cashier_stock + ? WHERE id = ? AND is_track_stock = 1', [item.quantity, item.product_id]);
       await tx.run(`INSERT INTO inventory_movements (id, product_id, type, quantity, reference_type, reference_id, scope, notes, created_by)
         VALUES (?, ?, 'in', ?, 'void', ?, 'cashier', ?, ?)`,
-        [uuid(), item.product_id, item.quantity, req.params.id, `Dikembalikan dari void: ${reason || 'Tanpa alasan'}`, voidBy]);
+        [uuid(), item.product_id, item.quantity, req.params.id, `Dikembalikan dari void: ${reason}`, voidBy]);
+    }
+    if (current.customer_id && current.payment_status === 'completed') {
+      const earned = await tx.get("SELECT COALESCE(SUM(points), 0) AS points FROM loyalty_points_history WHERE transaction_id = ? AND type = 'earn'", [req.params.id]) as any;
+      await tx.run(`UPDATE customers SET total_spent = GREATEST(0, total_spent - ?),
+        visit_count = GREATEST(0, visit_count - 1), points = GREATEST(0, points - ?), updated_at = now()
+        WHERE id = ?`, [current.grand_total, earned?.points || 0, current.customer_id]);
+      await tx.run('DELETE FROM loyalty_points_history WHERE transaction_id = ?', [req.params.id]);
     }
   });
+  } catch (e) {
+    return res.status(409).json({ error: e instanceof Error ? e.message : 'Transaksi gagal dibatalkan.' });
+  }
   await recordAudit(req, {
     action: 'void', entity: 'transaction', entity_id: req.params.id,
-    summary: `Membatalkan (void) transaksi ${trx.receipt_number || req.params.id}. Alasan: ${reason || 'Tanpa alasan'}`,
+    summary: `Membatalkan (void) transaksi ${trx.receipt_number || req.params.id}. Alasan: ${reason}`,
   });
+  return res.json({ success: true });
+});
+
+// Hanya SuperAdmin yang boleh menghapus transaksi Void secara permanen.
+router.delete('/:id', requireAdminOnly, requireSuperAdmin, async (req: Request, res: Response) => {
+  const reason = String(req.body?.reason || '').trim();
+  const confirmation = String(req.body?.confirm_receipt_number || '').trim();
+  if (reason.length < 10) return res.status(400).json({ error: 'Alasan penghapusan minimal 10 karakter.' });
+  const db = getDb();
+  const trx = await db.get('SELECT id, receipt_number, is_void FROM transactions WHERE id = ?', [req.params.id]) as any;
+  if (!trx) return res.status(404).json({ error: 'Transaksi tidak ditemukan.' });
+  if (!trx.is_void) return res.status(409).json({ error: 'Hanya transaksi Void yang dapat dihapus permanen.' });
+  if (confirmation !== trx.receipt_number) return res.status(400).json({ error: 'Nomor struk konfirmasi tidak cocok.' });
+
+  try {
+    await db.transaction(async (tx) => {
+      const current = await tx.get('SELECT * FROM transactions WHERE id = ? FOR UPDATE', [req.params.id]) as any;
+      if (!current?.is_void) throw new Error('Transaksi tidak lagi berstatus Void.');
+      const earned = await tx.get("SELECT COALESCE(SUM(points), 0) AS points, COUNT(*) AS count FROM loyalty_points_history WHERE transaction_id = ? AND type = 'earn'", [req.params.id]) as any;
+      if (current.customer_id && Number(earned?.count || 0) > 0) {
+        await tx.run(`UPDATE customers SET total_spent = GREATEST(0, total_spent - ?),
+          visit_count = GREATEST(0, visit_count - 1), points = GREATEST(0, points - ?), updated_at = now()
+          WHERE id = ?`, [current.grand_total, earned.points, current.customer_id]);
+      }
+      await tx.run('DELETE FROM loyalty_points_history WHERE transaction_id = ?', [req.params.id]);
+      await tx.run("DELETE FROM inventory_movements WHERE reference_id = ? AND reference_type IN ('sale', 'void')", [req.params.id]);
+      await tx.run('DELETE FROM transactions WHERE id = ?', [req.params.id]);
+    });
+  } catch (e) {
+    return res.status(409).json({ error: e instanceof Error ? e.message : 'Transaksi gagal dihapus.' });
+  }
+  await recordAudit(req, { action: 'delete', entity: 'transaction', entity_id: req.params.id,
+    summary: `Menghapus permanen transaksi Void ${trx.receipt_number}. Alasan: ${reason}` });
   return res.json({ success: true });
 });
 

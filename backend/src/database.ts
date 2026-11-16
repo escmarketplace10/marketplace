@@ -103,6 +103,8 @@ export async function initializeSchema() {
       is_track_stock INTEGER DEFAULT 1,
       consignor_id TEXT,
       commission_percent NUMERIC,
+      commission_mode TEXT DEFAULT 'percent',
+      commission_amount NUMERIC,
       created_at TIMESTAMP DEFAULT now(),
       updated_at TIMESTAMP DEFAULT now()
     );
@@ -349,6 +351,16 @@ export async function initializeSchema() {
     ALTER TABLE transactions ADD COLUMN IF NOT EXISTS paid_by TEXT;
     ALTER TABLE transactions ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP;
     ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS delivered_quantity NUMERIC DEFAULT 0;
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS commission_mode TEXT DEFAULT 'percent';
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS commission_amount NUMERIC;
+    ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS consignor_id TEXT;
+    ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS commission_mode TEXT;
+    ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS commission_value NUMERIC;
+    UPDATE transaction_items ti SET
+      consignor_id = p.consignor_id,
+      commission_mode = CASE WHEN p.consignor_id IS NULL THEN 'none' ELSE COALESCE(p.commission_mode, 'percent') END,
+      commission_value = CASE WHEN p.consignor_id IS NULL THEN 0 WHEN p.commission_mode = 'amount' THEN COALESCE(p.commission_amount, 0) ELSE COALESCE(p.commission_percent, 0) END
+    FROM products p WHERE ti.product_id = p.id AND ti.commission_mode IS NULL;
   `);
 
   // Ensure default admin exists

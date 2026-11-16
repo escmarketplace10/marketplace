@@ -2,6 +2,7 @@ import { useEffect, useState, type ChangeEvent } from 'react';
 import axios from 'axios';
 import { Search, Plus, Pencil, Trash2, UtensilsCrossed, FolderOpen, X, ImagePlus } from 'lucide-react';
 import { toast, confirmDialog } from '../ui/feedback';
+import { isSuperAdmin } from '../lib/perms';
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n);
 const rupiah = (n: number) => 'Rp ' + fmt(n);
@@ -100,7 +101,9 @@ export default function Products() {
       sku: existing?.sku || '',
       barcode: existing?.barcode || '',
       consignor_id: existing?.consignor_id || '',
+      commission_mode: existing?.commission_mode || 'percent',
       commission_percent: existing?.commission_percent ?? '',
+      commission_amount: existing?.commission_amount ?? '',
       image: existing?.image || '',
       image_base64: '',
     });
@@ -124,6 +127,14 @@ export default function Products() {
       toast('Nama, kategori, dan harga wajib diisi.', 'error');
       return;
     }
+    if (modal.consignor_id && isSuperAdmin()) {
+      const value = Number(modal.commission_mode === 'amount' ? modal.commission_amount : modal.commission_percent);
+      const empty = (modal.commission_mode === 'amount' ? modal.commission_amount : modal.commission_percent) === '';
+      if (empty || !Number.isFinite(value) || value < 0 || (modal.commission_mode === 'percent' && value > 100) || (modal.commission_mode === 'amount' && value > Number(modal.price))) {
+        toast('Isi margin 0–100% atau nominal per item yang tidak melebihi harga jual.', 'error');
+        return;
+      }
+    }
     setSubmitting(true);
     try {
       const data = {
@@ -137,8 +148,12 @@ export default function Products() {
         is_track_stock: modal.is_track_stock ? 1 : 0,
         sku: modal.sku || null,
         barcode: modal.barcode || null,
-        consignor_id: modal.consignor_id || null,
-        commission_percent: modal.consignor_id ? (Number(modal.commission_percent) || 0) : null,
+        ...(isSuperAdmin() ? {
+          consignor_id: modal.consignor_id || null,
+          commission_mode: modal.commission_mode,
+          commission_percent: modal.consignor_id && modal.commission_mode === 'percent' ? Number(modal.commission_percent) : null,
+          commission_amount: modal.consignor_id && modal.commission_mode === 'amount' ? Number(modal.commission_amount) : null,
+        } : {}),
         ...(modal.image_base64 ? { image_base64: modal.image_base64 } : {}),
       };
       if (modal.id) {
@@ -347,7 +362,7 @@ export default function Products() {
                     <td><span className="badge badge-gray">{p.unit || 'pcs'}</span></td>
                     <td>
                       {p.consignor_id ? (
-                        <span className="badge badge-orange">{p.consignor_name} ({p.commission_percent}%)</span>
+                        <span className="badge badge-orange">{p.consignor_name} ({p.commission_mode === 'amount' ? `${rupiah(Number(p.commission_amount || 0))}/item` : `${p.commission_percent || 0}%`})</span>
                       ) : '-'}
                     </td>
                     <td style={{ textAlign: 'center' }}>
@@ -463,21 +478,28 @@ export default function Products() {
 
               <div style={{ borderTop: '1px solid var(--border-light)', marginTop: 8, paddingTop: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                  <input type="checkbox" id="isConsign" checked={!!modal.consignor_id} onChange={e => setModal((m: any) => ({ ...m, consignor_id: e.target.checked ? (consignors[0]?.id || '') : '' }))} />
+                  <input type="checkbox" id="isConsign" checked={!!modal.consignor_id} disabled={!isSuperAdmin()} onChange={e => setModal((m: any) => ({ ...m, consignor_id: e.target.checked ? (consignors[0]?.id || '') : '' }))} />
                   <label htmlFor="isConsign" style={{ fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Barang Titipan (Konsinyasi)</label>
                 </div>
                 {modal.consignor_id && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
                     <div className="form-group">
                       <label className="form-label">Penitip</label>
-                      <select className="form-select" value={modal.consignor_id} onChange={e => setModal((m: any) => ({ ...m, consignor_id: e.target.value }))}>
+                      <select className="form-select" value={modal.consignor_id} disabled={!isSuperAdmin()} onChange={e => setModal((m: any) => ({ ...m, consignor_id: e.target.value }))}>
                         <option value="">-- Pilih --</option>
                         {consignors.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
                     </div>
                     <div className="form-group">
-                      <label className="form-label">Komisi (%)</label>
-                      <input type="number" className="form-input" min={0} max={100} value={modal.commission_percent} onChange={e => setModal((m: any) => ({ ...m, commission_percent: e.target.value }))} />
+                      <label className="form-label">Jenis margin toko</label>
+                      <select className="form-select" value={modal.commission_mode} disabled={!isSuperAdmin()} onChange={e => setModal((m: any) => ({ ...m, commission_mode: e.target.value }))}>
+                        <option value="percent">Persen dari penjualan</option>
+                        <option value="amount">Nominal per item</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">{modal.commission_mode === 'amount' ? 'Margin toko (Rp/item)' : 'Margin toko (%)'}</label>
+                      <input type="number" className="form-input" min={0} max={modal.commission_mode === 'amount' ? Number(modal.price) || undefined : 100} step={modal.commission_mode === 'amount' ? 1 : 0.01} disabled={!isSuperAdmin()} value={modal.commission_mode === 'amount' ? modal.commission_amount : modal.commission_percent} onChange={e => setModal((m: any) => ({ ...m, [m.commission_mode === 'amount' ? 'commission_amount' : 'commission_percent']: e.target.value }))} />
                     </div>
                   </div>
                 )}

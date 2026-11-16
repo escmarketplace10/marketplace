@@ -313,6 +313,9 @@ export default function Employees() {
                     value={form.pin}
                     onChange={e => setForm((f: any) => ({ ...f, pin: e.target.value.replace(/\D/g, '') }))}
                   />
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>
+                    Gunakan PIN yang berbeda untuk setiap anggota. Sistem akan menolak PIN yang sudah dipakai.
+                  </div>
                   {modal !== 'add' && (
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
                       <ShieldAlert size={13} /> Kosongkan jika tidak ingin merubah PIN saat ini.
@@ -400,7 +403,7 @@ export default function Employees() {
               <div className="form-group">
                 <label className="form-label">PIN Baru (4-6 digit)</label>
                 <input
-                  type="text"
+                  type="password"
                   maxLength={6}
                   inputMode="numeric"
                   autoFocus
@@ -411,6 +414,9 @@ export default function Employees() {
                   onChange={e => setNewPin(e.target.value.replace(/\D/g, ''))}
                   onKeyDown={e => { if (e.key === 'Enter') submitPin(); }}
                 />
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>
+                  PIN baru harus berbeda dari PIN anggota lain.
+                </div>
               </div>
             </div>
             <div className="modal-footer">

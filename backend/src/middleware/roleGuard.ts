@@ -34,12 +34,18 @@ export function requireCashierStockAccess(req: Request, res: Response, next: Nex
 }
 
 /**
- * Void transaksi mengembalikan stok & mengubah catatan keuangan — hanya
- * boleh dilakukan Admin lewat Website (bukan kasir/petugas stok lewat aplikasi).
+ * Aksi khusus admin web, termasuk hapus permanen transaksi Void.
  */
 export function requireAdminOnly(req: Request, res: Response, next: NextFunction) {
   const auth = (req as any).auth;
   if (!auth) return res.status(401).json({ error: 'Sesi berakhir. Silakan login ulang.' });
   if (auth.kind === 'admin') return next();
   return res.status(403).json({ error: 'Akses ditolak: hanya Admin yang bisa melakukan ini lewat Website.' });
+}
+
+export function requireCashierOrAdmin(req: Request, res: Response, next: NextFunction) {
+  const auth = (req as any).auth;
+  if (!auth) return res.status(401).json({ error: 'Sesi berakhir. Silakan login ulang.' });
+  if (auth.kind === 'admin' || (auth.kind === 'employee' && auth.role === 'cashier')) return next();
+  return res.status(403).json({ error: 'Hanya kasir atau admin yang dapat membatalkan transaksi.' });
 }

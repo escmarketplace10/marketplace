@@ -29,6 +29,8 @@ export const createProductSchema = z.object({
   is_track_stock: z.number().min(0).max(1).optional().default(1),
   consignor_id: z.string().optional().nullable(),
   commission_percent: z.number().min(0).max(100).optional().nullable(),
+  commission_mode: z.enum(['percent', 'amount']).optional(),
+  commission_amount: z.number().min(0).optional().nullable(),
   image_base64: z.string().optional(),
 });
 

@@ -7,6 +7,25 @@ import { recordAudit } from '../lib/audit';
 
 const router = Router();
 
+function isSuperAdmin(req: Request): boolean {
+  const auth = (req as any).auth;
+  return auth?.kind === 'admin' && auth.is_super !== false;
+}
+
+function commissionSettings(body: any, existing: any, sellingPrice: number) {
+  const consignorId = body.consignor_id === undefined ? (existing?.consignor_id ?? null) : (body.consignor_id || null);
+  const mode = body.commission_mode === undefined ? (existing?.commission_mode || 'percent') : body.commission_mode;
+  const value = mode === 'amount'
+    ? Number(body.commission_amount === undefined ? existing?.commission_amount : body.commission_amount)
+    : Number(body.commission_percent === undefined ? existing?.commission_percent : body.commission_percent);
+  if (!consignorId) return { consignorId: null, mode: 'percent', percent: null, amount: null };
+  if (!['percent', 'amount'].includes(mode) || !Number.isFinite(value) || value < 0 ||
+      (mode === 'percent' && value > 100) || (mode === 'amount' && value > sellingPrice)) {
+    throw new Error('Komisi harus 0-100% atau nominal Rp per item yang tidak melebihi harga jual.');
+  }
+  return { consignorId, mode, percent: mode === 'percent' ? value : null, amount: mode === 'amount' ? value : null };
+}
+
 // Limit lebih besar khusus route produk (upload gambar base64 ~8MB)
 const largeBody = express.json({ limit: '8mb' });
 
@@ -139,17 +158,23 @@ router.get('/:id', async (req: Request, res: Response) => {
 // POST /api/products - Create product (bukan untuk kasir)
 router.post('/', largeBody, requireStockAccess, async (req: Request, res: Response) => {
   const db = getDb();
-  const { category_id, name, sku, barcode, price, cost_price, unit, stock, min_stock, is_track_stock, consignor_id, commission_percent } = req.body;
+  const { category_id, name, sku, barcode, price, cost_price, unit, stock, min_stock, is_track_stock, consignor_id } = req.body;
 
   if (!category_id || !name || price === undefined) {
     return res.status(400).json({ error: 'category_id, name, and price required' });
   }
+  if ((consignor_id || req.body.commission_mode !== undefined || req.body.commission_percent !== undefined || req.body.commission_amount !== undefined) && !isSuperAdmin(req)) return res.status(403).json({ error: 'Hanya SuperAdmin yang dapat mengatur margin barang titipan.' });
+  let commission;
+  try { commission = commissionSettings(req.body, null, Number(price)); }
+  catch (e) { return res.status(400).json({ error: (e as Error).message }); }
 
   const id = uuid();
   await db.run(`
-    INSERT INTO products (id, category_id, name, sku, barcode, price, cost_price, unit, stock, min_stock, is_track_stock, consignor_id, commission_percent)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [id, category_id, name, sku || null, barcode || null, price, cost_price || 0, unit || 'pcs', stock || 0, min_stock || 0, is_track_stock ?? 1, consignor_id || null, commission_percent ?? null]);
+    INSERT INTO products (id, category_id, name, sku, barcode, price, cost_price, unit, stock, min_stock, is_track_stock,
+      consignor_id, commission_percent, commission_mode, commission_amount)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [id, category_id, name, sku || null, barcode || null, price, cost_price || 0, unit || 'pcs', stock || 0,
+    min_stock || 0, is_track_stock ?? 1, commission.consignorId, commission.percent, commission.mode, commission.amount]);
 
   if (req.body.image_base64) {
     const url = await saveProductImage(id, req.body.image_base64);
@@ -163,10 +188,16 @@ router.post('/', largeBody, requireStockAccess, async (req: Request, res: Respon
 // PUT /api/products/:id - Update product (bukan untuk kasir)
 router.put('/:id', largeBody, requireStockAccess, async (req: Request, res: Response) => {
   const db = getDb();
-  const { name, price, cost_price, stock, min_stock, is_active, barcode, category_id, unit, consignor_id, commission_percent } = req.body;
+  const { name, price, cost_price, stock, min_stock, is_active, barcode, category_id, unit } = req.body;
 
   const existing = await db.get('SELECT * FROM products WHERE id = ?', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Product not found' });
+  const commissionFields = ['consignor_id', 'commission_mode', 'commission_percent', 'commission_amount'];
+  const changesCommission = commissionFields.some(key => req.body[key] !== undefined && String(req.body[key] ?? '') !== String((existing as any)[key] ?? ''));
+  if (changesCommission && !isSuperAdmin(req)) return res.status(403).json({ error: 'Hanya SuperAdmin yang dapat mengatur margin barang titipan.' });
+  let commission;
+  try { commission = commissionSettings(req.body, existing, Number(price ?? (existing as any).price)); }
+  catch (e) { return res.status(400).json({ error: (e as Error).message }); }
 
   await db.run(`
     UPDATE products SET
@@ -181,9 +212,13 @@ router.put('/:id', largeBody, requireStockAccess, async (req: Request, res: Resp
       unit = COALESCE(?, unit),
       consignor_id = ?,
       commission_percent = ?,
+      commission_mode = ?,
+      commission_amount = ?,
       updated_at = now()
     WHERE id = ?
-  `, [name || null, price ?? null, cost_price ?? null, stock ?? null, min_stock ?? null, is_active ?? null, barcode || null, category_id || null, unit || null, consignor_id ?? null, commission_percent ?? null, req.params.id]);
+  `, [name || null, price ?? null, cost_price ?? null, stock ?? null, min_stock ?? null, is_active ?? null,
+    barcode || null, category_id || null, unit || null, commission.consignorId, commission.percent,
+    commission.mode, commission.amount, req.params.id]);
 
   if (req.body.image_base64) {
     const url = await saveProductImage(req.params.id, req.body.image_base64);

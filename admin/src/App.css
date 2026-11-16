@@ -304,6 +304,52 @@ body {
 /* ========== PAGE CONTENT ========== */
 .page-content { padding: 28px 32px; flex: 1; max-width: 1440px; width: 100%; }
 
+.page-guide {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+.page-guide-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  cursor: pointer;
+  list-style: none;
+}
+.page-guide-summary::-webkit-details-marker { display: none; }
+.page-guide-summary:focus-visible { outline: 2px solid var(--primary-dark); outline-offset: 2px; }
+.page-guide-summary > svg { color: var(--primary-dark); flex-shrink: 0; }
+.page-guide-text { display: flex; gap: 10px; flex-wrap: wrap; color: var(--text-secondary); }
+.page-guide-text strong { color: var(--text-primary); }
+.page-guide-toggle { margin-left: auto; color: var(--primary-dark); font-weight: 700; white-space: nowrap; }
+.page-guide[open] .page-guide-toggle { font-size: 0; }
+.page-guide[open] .page-guide-toggle::after { content: 'Tutup langkah'; font-size: 14px; }
+.page-guide-steps {
+  border-top: 1px solid var(--border);
+  margin: 0;
+  padding: 14px 24px 16px 52px;
+  color: var(--text-secondary);
+}
+.page-guide-steps li + li { margin-top: 6px; }
+.page-guide-terms {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px 18px;
+  border-top: 1px solid var(--border);
+  margin: 0;
+  padding: 14px 16px 16px;
+}
+.page-guide-terms dt { font-weight: 700; color: var(--text-primary); }
+.page-guide-terms dd { margin: 2px 0 0; color: var(--text-secondary); }
+@media (max-width: 640px) {
+  .page-guide-summary { align-items: flex-start; }
+  .page-guide-text { display: block; }
+  .page-guide-text span { display: block; margin-top: 2px; }
+  .page-guide-toggle { font-size: 12px; }
+}
+
 .page-header {
   display: flex;
   align-items: center;
