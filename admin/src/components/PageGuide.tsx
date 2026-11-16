@@ -78,7 +78,7 @@ export const pageGuides: Record<string, Guide> = {
   },
   '/employees': {
     purpose: 'Buat akses karyawan aplikasi dan admin web.',
-    steps: ['Pilih peran: waiter membuat pesanan, kasir menutup tagihan, petugas stok mengelola persediaan, admin web mengelola halaman yang diizinkan.', 'Berikan PIN berbeda untuk setiap akun aplikasi. Admin web memakai email dan password.', 'Nonaktifkan akun anggota yang tidak lagi bertugas; gunakan Reset PIN bila anggota lupa PIN.'],
+    steps: ['Pilih peran: waiter membuat pesanan, kasir menutup tagihan, petugas stok mengelola persediaan, admin web mengelola halaman yang diizinkan.', 'Berikan PIN berbeda untuk setiap akun aplikasi. PIN baru dapat dilihat sekali setelah disimpan; PIN lama tidak dapat ditampilkan.', 'Nonaktifkan akun anggota yang tidak lagi bertugas; gunakan Reset PIN bila anggota lupa PIN.'],
     terms: [{ name: 'Izin halaman', meaning: 'Daftar halaman portal yang boleh dibuka oleh admin web tertentu.' }],
   },
 };

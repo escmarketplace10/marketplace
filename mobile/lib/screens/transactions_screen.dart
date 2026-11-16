@@ -6,6 +6,14 @@ import '../core/widgets.dart';
 import '../services/api.dart';
 import '../state/session.dart';
 
+String paymentName(dynamic value) => switch (value?.toString()) {
+  'cash' => 'Tunai',
+  'qris' => 'QRIS',
+  'card' => 'Kartu',
+  'ewallet' => 'E-Wallet',
+  _ => value?.toString() ?? '',
+};
+
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
   @override
@@ -70,6 +78,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 itemBuilder: (_, i) {
                   final t = _trx[i];
                   final isVoid = toInt(t['is_void']) == 1;
+                  final receipt = (t['receipt_number'] ?? '').toString();
+                  final shortReceipt = receipt.length > 6
+                      ? receipt.substring(receipt.length - 6)
+                      : receipt;
                   return Card(
                     child: ListTile(
                       leading: CircleAvatar(
@@ -82,7 +94,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         ),
                       ),
                       title: Text(
-                        '${t['transaction_name'] ?? t['receipt_number']} · ${t['employee_name'] ?? '-'}',
+                        (t['transaction_name'] ?? t['receipt_number'])
+                            .toString(),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontWeight: FontWeight.w700,
                           decoration: isVoid
@@ -91,7 +106,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         ),
                       ),
                       subtitle: Text(
-                        '${formatDateTime(t['created_at'])} · ${t['payment_method'] ?? ''}',
+                        '#$shortReceipt · ${t['employee_name'] ?? '-'}\n${formatDateTime(t['created_at'])}${t['payment_status'] == 'completed' ? ' · ${paymentName(t['payment_method'])}' : ''}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       trailing: Column(
                         mainAxisSize: MainAxisSize.min,
@@ -109,7 +126,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                 : 'Belum dibayar',
                             style: const TextStyle(
                               fontSize: 11,
-                              color: AppColors.muted,
+                              color: AppColors.ink,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ],
@@ -328,8 +346,10 @@ class _DetailSheetState extends State<_DetailSheet> {
           (it) =>
               toDouble(it['delivered_quantity']) >= toDouble(it['quantity']),
         );
+    final availableHeight = MediaQuery.of(context).size.height * 0.8;
+    final neededHeight = (390 + items.length.clamp(1, 4) * 72).toDouble();
     return SizedBox(
-      height: MediaQuery.of(context).size.height * 0.8,
+      height: neededHeight < availableHeight ? neededHeight : availableHeight,
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -364,6 +384,13 @@ class _DetailSheetState extends State<_DetailSheet> {
                 ),
               ),
             const Divider(),
+            if (isOpen && role == 'cashier' && !complete)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'Centang item setelah benar-benar terantar. Semua item wajib lengkap sebelum pembayaran.',
+                ),
+              ),
             Expanded(
               child: ListView(
                 children: [
@@ -401,7 +428,7 @@ class _DetailSheetState extends State<_DetailSheet> {
             _row('Total', rupiah(toDouble(trx['grand_total'])), big: true),
             if (isPaid)
               _row(
-                'Bayar (${trx['payment_method']})',
+                'Bayar (${paymentName(trx['payment_method'])})',
                 rupiah(toDouble(trx['cash_amount'])),
               ),
             if (isPaid)
@@ -410,11 +437,7 @@ class _DetailSheetState extends State<_DetailSheet> {
             if (isOpen && role == 'cashier')
               FilledButton(
                 onPressed: _working || !complete ? null : _pay,
-                child: Text(
-                  complete
-                      ? 'Periksa dan Tutup Bill'
-                      : 'Tandai Semua Item Terantar',
-                ),
+                child: Text(complete ? 'Periksa dan Tutup Bill' : 'Tutup Bill'),
               ),
             if (widget.canVoid && !isVoid)
               OutlinedButton.icon(

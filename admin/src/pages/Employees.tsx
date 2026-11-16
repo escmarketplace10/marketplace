@@ -15,6 +15,8 @@ export default function Employees() {
   const [pinModal, setPinModal] = useState<any>(null);
   const [newPin, setNewPin] = useState('');
   const [pinSaving, setPinSaving] = useState(false);
+  const [issuedPin, setIssuedPin] = useState<{ name: string; pin: string } | null>(null);
+  const [showIssuedPin, setShowIssuedPin] = useState(false);
 
   const token = localStorage.getItem('admin_token');
   const headers = { Authorization: `Bearer ${token}` };
@@ -90,6 +92,11 @@ export default function Employees() {
     try {
       if (modal === 'add') await axios.post('/api/employees', payload, { headers });
       else await axios.put(`/api/employees/${modal.id}`, payload, { headers });
+      if (!isAdmin && form.pin) {
+        setIssuedPin({ name: form.name, pin: form.pin });
+        setShowIssuedPin(false);
+      }
+      setForm((current: any) => ({ ...current, pin: '', password: '' }));
       setModal(null);
       toast(modal === 'add' ? 'Akun ditambahkan.' : 'Data diperbarui.', 'success');
       load();
@@ -105,6 +112,9 @@ export default function Employees() {
     try {
       // Kirim hanya field pin; kolom lain di-COALESCE server jadi tidak berubah.
       await axios.put(`/api/employees/${pinModal.id}`, { pin: newPin }, { headers });
+      setIssuedPin({ name: pinModal.name, pin: newPin });
+      setShowIssuedPin(false);
+      setNewPin('');
       toast(`PIN ${pinModal.name} berhasil direset.`, 'success');
       setPinModal(null);
     } catch (e: any) { toast(e.response?.data?.error || 'Gagal reset PIN', 'error'); }
@@ -211,7 +221,7 @@ export default function Employees() {
                     <td style={{ textAlign: 'center' }}>
                       <div style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
                         {e.role !== 'admin' && (
-                          <button className="btn btn-secondary btn-sm" onClick={() => openResetPin(e)} title="Reset PIN"><KeyRound size={13} /></button>
+                          <button className="btn btn-secondary btn-sm" onClick={() => openResetPin(e)}><KeyRound size={13} /> Reset PIN</button>
                         )}
                         <button className="btn btn-secondary btn-sm" onClick={() => openEdit(e)} title="Edit"><Edit2 size={13} /></button>
                         {e.is_active ? (
@@ -314,11 +324,11 @@ export default function Employees() {
                     onChange={e => setForm((f: any) => ({ ...f, pin: e.target.value.replace(/\D/g, '') }))}
                   />
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>
-                    Gunakan PIN yang berbeda untuk setiap anggota. Sistem akan menolak PIN yang sudah dipakai.
+                    Gunakan PIN berbeda untuk setiap anggota. PIN baru dapat dilihat sekali setelah disimpan.
                   </div>
                   {modal !== 'add' && (
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <ShieldAlert size={13} /> Kosongkan jika tidak ingin merubah PIN saat ini.
+                      <ShieldAlert size={13} /> PIN lama tidak dapat ditampilkan. Kosongkan jika tidak ingin menggantinya.
                     </div>
                   )}
                 </div>
@@ -425,6 +435,21 @@ export default function Employees() {
                 {pinSaving ? 'Menyimpan…' : 'Simpan PIN Baru'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {issuedPin && (
+        <div className="modal-overlay">
+          <div className="modal" role="dialog" aria-modal="true" aria-label="PIN baru karyawan" style={{ maxWidth: 400 }}>
+            <div className="modal-header"><div className="modal-title">PIN baru tersimpan</div></div>
+            <div className="modal-body">
+              <p>PIN untuk <strong>{issuedPin.name}</strong> hanya dapat dilihat di sini. Catat sebelum menutup halaman ini.</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
+                <output style={{ fontSize: 24, fontWeight: 700, letterSpacing: 5, minWidth: 120 }} aria-label={showIssuedPin ? 'PIN baru' : 'PIN disembunyikan'}>{showIssuedPin ? issuedPin.pin : '••••••'}</output>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowIssuedPin(value => !value)}>{showIssuedPin ? 'Sembunyikan' : 'Tampilkan'}</button>
+              </div>
+            </div>
+            <div className="modal-footer"><button className="btn btn-primary" onClick={() => { setIssuedPin(null); setShowIssuedPin(false); }}>Sudah dicatat</button></div>
           </div>
         </div>
       )}

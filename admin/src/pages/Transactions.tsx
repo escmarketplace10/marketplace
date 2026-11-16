@@ -3,21 +3,15 @@ import axios from 'axios';
 import { Receipt, Search, Eye, XCircle, Wallet, TrendingUp, Ban, Coins, Trash2 } from 'lucide-react';
 import { toast } from '../ui/feedback';
 import { isSuperAdmin } from '../lib/perms';
+import { paymentMethodLabel, transactionDate, transactionStatus, transactionTitle } from '../lib/transactionDisplay';
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n || 0);
 
-const fmtDateTime = (s: string) =>
-  new Date(s).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-
-const paymentLabel: Record<string, string> = {
-  cash: 'Tunai', qris: 'QRIS', card: 'Kartu', ewallet: 'E-Wallet',
-};
-
 export default function Transactions() {
   const [trx, setTrx] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get('search') || '');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [voidFilter, setVoidFilter] = useState(''); // '', '0', '1'
@@ -151,7 +145,7 @@ export default function Transactions() {
             </select>
             <div className="search-input-wrapper" style={{ minWidth: 200 }}>
               <Search size={15} />
-              <input className="search-input" placeholder="Cari struk/kasir/pelanggan..." value={search} onChange={e => setSearch(e.target.value)} />
+              <input className="search-input" placeholder="Cari nama transaksi, struk, petugas..." value={search} onChange={e => setSearch(e.target.value)} />
             </div>
           </div>
         </div>
@@ -161,7 +155,7 @@ export default function Transactions() {
             <table>
               <thead>
                 <tr>
-                  <th>No. Struk</th><th>Tanggal</th><th>Kasir</th><th>Pelanggan</th>
+                  <th>Transaksi / Struk</th><th>Tanggal</th><th>Dibuat oleh</th><th>Pelanggan</th>
                   <th>Pembayaran</th><th>Total</th><th>Status</th><th style={{ textAlign: 'center' }}>Aksi</th>
                 </tr>
               </thead>
@@ -172,19 +166,17 @@ export default function Transactions() {
                   </td></tr>
                 ) : trx.map(t => (
                   <tr key={t.id}>
-                    <td><span style={{ fontWeight: 700, color: 'var(--primary)' }}>#{t.receipt_number}</span></td>
-                    <td style={{ color: 'var(--text-muted)' }}>{fmtDateTime(t.created_at)}</td>
+                    <td><strong>{transactionTitle(t)}</strong><div style={{ color: 'var(--text-muted)', fontSize: 12 }}>#{t.receipt_number}</div></td>
+                    <td style={{ color: 'var(--text-muted)' }}>{transactionDate(t.created_at)}</td>
                     <td>{t.employee_name || '-'}</td>
                     <td>{t.customer_name || <span style={{ color: 'var(--text-muted)' }}>Umum</span>}</td>
                     <td>
-                      <span className={`badge ${t.payment_method === 'cash' ? 'badge-green' : 'badge-blue'}`}>
-                        {paymentLabel[t.payment_method] || t.payment_method || '-'}
-                      </span>
+                      {paymentMethodLabel(t)}
                     </td>
                     <td style={{ fontWeight: 700 }}>{fmt(t.grand_total)}</td>
                     <td>
-                      <span className={`badge ${t.is_void ? 'badge-red' : t.payment_status === 'completed' ? 'badge-green' : 'badge-yellow'}`}>
-                        {t.is_void ? 'Void' : t.payment_status === 'completed' ? 'Sudah bayar' : 'Belum dibayar'}
+                      <span className={`badge ${transactionStatus(t).badge}`}>
+                        {transactionStatus(t).label}
                       </span>
                     </td>
                     <td style={{ textAlign: 'center' }}>
@@ -202,13 +194,13 @@ export default function Transactions() {
         <div className="modal-overlay" onClick={() => setDetail(null)}>
           <div className="modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <div className="modal-title">Struk #{detail.receipt_number}</div>
+              <div className="modal-title">{transactionTitle(detail)} <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>#{detail.receipt_number}</span></div>
               <button className="modal-close" onClick={() => setDetail(null)}>×</button>
             </div>
             <div className="modal-body">
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14, fontSize: 13, color: 'var(--text-muted)' }}>
-                <span>{fmtDateTime(detail.created_at)}</span>
-                <span>Kasir: <strong style={{ color: 'var(--text-primary)' }}>{detail.employee_name || '-'}</strong></span>
+                <span>{transactionDate(detail.created_at)}</span>
+                <span>Dibuat oleh: <strong style={{ color: 'var(--text-primary)' }}>{detail.employee_name || '-'}</strong></span>
               </div>
 
               {detail.is_void && (
@@ -218,8 +210,8 @@ export default function Transactions() {
                   <div>Oleh: {detail.void_by || '-'}</div>
                 </div>
               )}
-              {!detail.is_void && <div className={`badge ${detail.payment_status === 'completed' ? 'badge-green' : 'badge-yellow'}`} style={{ marginBottom: 14 }}>
-                {detail.payment_status === 'completed' ? 'Sudah bayar' : 'Belum dibayar'}
+              {!detail.is_void && <div className={`badge ${transactionStatus(detail).badge}`} style={{ marginBottom: 14 }}>
+                {transactionStatus(detail).label}
               </div>}
 
               <div className="table-container" style={{ marginBottom: 16 }}>
@@ -246,7 +238,7 @@ export default function Transactions() {
                 <Row label="Diskon" value={`- ${fmt(detail.discount_total)}`} />
                 {Number(detail.tax_total) > 0 && <Row label="Pajak" value={fmt(detail.tax_total)} />}
                 <Row label="Total" value={fmt(detail.grand_total)} big />
-                {detail.payment_status === 'completed' && <Row label={`Dibayar (${paymentLabel[detail.payment_method] || detail.payment_method || '-'})`} value={fmt(detail.cash_amount)} />}
+                {detail.payment_status === 'completed' && <Row label={`Dibayar (${paymentMethodLabel(detail)})`} value={fmt(detail.cash_amount)} />}
                 {detail.payment_status === 'completed' && <Row label="Kembalian" value={fmt(detail.change_amount)} />}
                 {detail.payment_status === 'completed' && Number(detail.overpay_amount) > 0 && <Row label="Uang lebih (tidak diambil)" value={fmt(detail.overpay_amount)} />}
                 {detail.notes && <Row label="Catatan" value={detail.notes} />}

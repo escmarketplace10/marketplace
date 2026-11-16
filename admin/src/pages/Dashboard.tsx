@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { TrendingUp, ShoppingBag, Users, Package, ArrowUpRight, ArrowDownRight, Clock } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { hasPerm } from '../lib/perms';
+import { paymentMethodLabel, transactionDate, transactionStatus, transactionTitle } from '../lib/transactionDisplay';
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n);
@@ -28,27 +31,39 @@ export default function Dashboard() {
   const [stats, setStats] = useState<any>(null);
   const [recentTx, setRecentTx] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [summaryError, setSummaryError] = useState(false);
+  const [transactionsError, setTransactionsError] = useState(false);
+  const canSeeTransactions = hasPerm('transactions');
 
   const token = localStorage.getItem('admin_token');
   const headers = { Authorization: `Bearer ${token}` };
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [dashRes, txRes] = await Promise.all([
-          axios.get('/api/dashboard/summary', { headers }).catch(() => ({ data: {} })),
-          axios.get('/api/transactions?limit=7', { headers }).catch(() => ({ data: [] })),
-        ]);
-        setStats(dashRes.data);
-        setRecentTx(Array.isArray(txRes.data) ? txRes.data.slice(0, 7) : []);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
+  const load = async () => {
+    setLoading(true);
+    const [summary, transactions] = await Promise.allSettled([
+      axios.get('/api/dashboard/summary', { headers }),
+      canSeeTransactions ? axios.get('/api/transactions?limit=7', { headers }) : Promise.resolve(null),
+    ]);
+    if (summary.status === 'fulfilled') {
+      setStats(summary.value.data);
+      setSummaryError(false);
+    } else {
+      setStats(null);
+      setSummaryError(true);
+    }
+    if (canSeeTransactions) {
+      if (transactions.status === 'fulfilled' && transactions.value && Array.isArray(transactions.value.data)) {
+        setRecentTx(transactions.value.data);
+        setTransactionsError(false);
+      } else {
+        setRecentTx([]);
+        setTransactionsError(true);
       }
-    };
-    load();
-  }, []);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { void load(); }, []);
 
   if (loading) {
     return (
@@ -63,12 +78,12 @@ export default function Dashboard() {
     <div>
       <div className="page-header">
         <div>
-          <div className="page-title">Selamat Datang! 👋</div>
-          <div className="page-subtitle">Ringkasan aktivitas toko Anda hari ini</div>
+          <div className="page-title">Ringkasan Toko</div>
+          <div className="page-subtitle">Penjualan dihitung setelah pembayaran dikonfirmasi kasir.</div>
         </div>
       </div>
 
-      <div className="stats-grid">
+      {summaryError ? <div className="card" role="alert"><div className="card-body">Ringkasan belum dapat dimuat. <button className="btn btn-secondary btn-sm" onClick={load}>Coba lagi</button></div></div> : <div className="stats-grid">
         <StatCard
           icon={<TrendingUp size={22} color="#F97316" />}
           label="Pendapatan Hari Ini"
@@ -77,9 +92,9 @@ export default function Dashboard() {
         />
         <StatCard
           icon={<ShoppingBag size={22} color="#F59E0B" />}
-          label="Transaksi Hari Ini"
+          label="Sudah Bayar Hari Ini"
           value={stats?.today_transactions ?? 0}
-          sub="pesanan selesai"
+          sub="tidak termasuk Void"
           color="amber"
         />
         <StatCard
@@ -95,30 +110,30 @@ export default function Dashboard() {
           sub="perlu restock"
           color="rose"
         />
-      </div>
+      </div>}
 
-      {/* Recent Transactions */}
-      <div className="card">
+      {canSeeTransactions && <div className="card">
         <div className="card-header">
           <div className="card-title">
             <Clock size={17} color="var(--primary)" />
             Transaksi Terbaru
           </div>
-          <span className="badge badge-blue">{recentTx.length} transaksi</span>
+          <Link className="btn btn-secondary btn-sm" to="/transactions">Lihat semua</Link>
         </div>
-        {recentTx.length === 0 ? (
+        {transactionsError ? <div className="card-body" role="alert">Daftar transaksi belum dapat dimuat. <button className="btn btn-secondary btn-sm" onClick={load}>Coba lagi</button></div> : recentTx.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon">🧾</div>
             <h3>Belum ada transaksi</h3>
-            <p>Transaksi akan muncul setelah kasir mulai melayani pelanggan</p>
+            <p>Pesanan baru akan muncul di sini.</p>
           </div>
         ) : (
           <div className="table-container" style={{ border: 'none', borderRadius: 0, boxShadow: 'none' }}>
             <table>
               <thead>
                 <tr>
-                  <th>No. Struk</th>
+                  <th>Transaksi / Struk</th>
                   <th>Tanggal</th>
+                  <th>Dibuat oleh</th>
                   <th>Pelanggan</th>
                   <th>Pembayaran</th>
                   <th>Total</th>
@@ -128,20 +143,15 @@ export default function Dashboard() {
               <tbody>
                 {recentTx.map((tx: any) => (
                   <tr key={tx.id}>
-                    <td><span style={{ fontWeight: 600, color: 'var(--primary)' }}>#{tx.receipt_number}</span></td>
-                    <td style={{ color: 'var(--text-muted)' }}>
-                      {new Date(tx.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                    </td>
+                    <td><Link to={`/transactions?search=${encodeURIComponent(tx.receipt_number)}`} style={{ fontWeight: 600 }}>{transactionTitle(tx)}</Link><div style={{ color: 'var(--text-muted)', fontSize: 12 }}>#{tx.receipt_number}</div></td>
+                    <td style={{ color: 'var(--text-muted)' }}>{transactionDate(tx.created_at)}</td>
+                    <td>{tx.employee_name || '—'}</td>
                     <td>{tx.customer_name || <span style={{ color: 'var(--text-muted)' }}>Umum</span>}</td>
-                    <td>
-                      <span className={`badge ${tx.payment_method === 'cash' ? 'badge-green' : 'badge-blue'}`}>
-                        {tx.payment_method === 'cash' ? '💵 Tunai' : tx.payment_method === 'qris' ? '📱 QRIS' : tx.payment_method || '-'}
-                      </span>
-                    </td>
+                    <td>{paymentMethodLabel(tx)}</td>
                     <td style={{ fontWeight: 700 }}>{fmt(tx.grand_total)}</td>
                     <td>
-                      <span className={`badge ${tx.is_void ? 'badge-red' : 'badge-green'}`}>
-                        {tx.is_void ? 'Void' : 'Selesai'}
+                      <span className={`badge ${transactionStatus(tx).badge}`}>
+                        {transactionStatus(tx).label}
                       </span>
                     </td>
                   </tr>
@@ -150,7 +160,7 @@ export default function Dashboard() {
             </table>
           </div>
         )}
-      </div>
+      </div>}
     </div>
   );
 }
