@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'app.dart';
 import 'config/app_config.dart';
+import 'services/api.dart';
 import 'state/session.dart';
 
 Future<void> main() async {
@@ -12,11 +13,9 @@ Future<void> main() async {
   await initializeDateFormatting('id_ID', null);
 
   final session = Session()..restoreFromPrefs();
+  Api.onUnauthorized = session.logout;
 
   runApp(
-    ChangeNotifierProvider.value(
-      value: session,
-      child: const PosEscApp(),
-    ),
+    ChangeNotifierProvider.value(value: session, child: const PosEscApp()),
   );
 }

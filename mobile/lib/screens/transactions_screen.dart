@@ -23,6 +23,7 @@ class TransactionsScreen extends StatefulWidget {
 class _TransactionsScreenState extends State<TransactionsScreen> {
   List<dynamic> _trx = [];
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -31,12 +32,15 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final res = await Api.transactions(params: {'limit': 100});
       if (mounted) setState(() => _trx = res);
     } catch (e) {
-      if (mounted) showSnack(context, e.toString(), error: true);
+      if (mounted) setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -64,6 +68,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       backgroundColor: AppColors.bg,
       body: _loading
           ? const Loading()
+          : _error != null
+          ? EmptyState(
+              icon: Icons.wifi_off,
+              message: _error!,
+              action: FilledButton.icon(
+                onPressed: _load,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Coba lagi'),
+              ),
+            )
           : _trx.isEmpty
           ? const EmptyState(
               icon: Icons.receipt_long,
