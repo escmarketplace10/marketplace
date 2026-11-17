@@ -120,7 +120,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         ),
                       ),
                       subtitle: Text(
-                        '#$shortReceipt · ${t['employee_name'] ?? '-'}\n${formatDateTime(t['created_at'])}${t['payment_status'] == 'completed' ? ' · ${paymentName(t['payment_method'])}' : ''}',
+                        '#$shortReceipt · ${t['employee_name'] ?? '-'}\n${formatDateTime(t['created_at'])}',
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),

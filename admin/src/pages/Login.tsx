@@ -35,7 +35,7 @@ export default function Login() {
         <h1>Kantinku</h1>
         <p className="login-subtitle">Panel Admin — kelola toko Anda</p>
 
-        {error && <div className="login-error">⚠️ {error}</div>}
+        {error && <div className="login-error" role="alert">{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <label className="login-label">Email</label>
@@ -59,7 +59,7 @@ export default function Login() {
             required
           />
           <button id="login-submit" type="submit" className="login-btn" disabled={loading}>
-            {loading ? '⏳ Memverifikasi...' : '🔐 Masuk ke Dashboard'}
+            {loading ? 'Memverifikasi...' : 'Masuk ke Dashboard'}
           </button>
         </form>
 
